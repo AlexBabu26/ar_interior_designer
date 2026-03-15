@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../domain/product.dart';
+import '../../catalog/domain/product.dart';
 
 class CartItem {
   final Product product;
@@ -33,10 +33,7 @@ class CartProvider with ChangeNotifier {
         ),
       );
     } else {
-      _items.putIfAbsent(
-        product.id,
-        () => CartItem(product: product),
-      );
+      _items.putIfAbsent(product.id, () => CartItem(product: product));
     }
     notifyListeners();
   }
