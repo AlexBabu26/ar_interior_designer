@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../features/admin/presentation/admin_product_screens.dart';
 import '../features/auth/application/auth_provider.dart';
 import '../features/auth/presentation/auth_screens.dart';
+import '../features/image_generation/presentation/generations_history_screen.dart';
 import '../features/orders/presentation/purchase_history_screen.dart';
 import '../features/storefront/presentation/storefront_screens.dart';
 
@@ -155,6 +156,10 @@ GoRouter createAppRouter(AuthProvider authProvider) {
           GoRoute(
             path: 'purchases',
             builder: (context, state) => const PurchaseHistoryScreen(),
+          ),
+          GoRoute(
+            path: 'generations',
+            builder: (context, state) => const GenerationsHistoryScreen(),
           ),
         ],
       ),

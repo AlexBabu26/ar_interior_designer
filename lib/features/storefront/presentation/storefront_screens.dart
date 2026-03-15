@@ -11,7 +11,10 @@ import '../../auth/presentation/auth_screens.dart';
 import '../../cart/presentation/cart_provider.dart';
 import '../../catalog/data/product_repository.dart';
 import '../../catalog/domain/product.dart';
-import '../../image_generation/data/gemini_image_repository.dart';
+import '../../auth/application/auth_provider.dart';
+import '../../image_generation/data/generated_image_repository.dart';
+import '../../image_generation/data/generated_image_storage.dart';
+import '../../image_generation/data/nvidia_nim_image_repository.dart';
 import '../../orders/data/order_repository.dart';
 
 class CatalogScreen extends StatefulWidget {
@@ -288,17 +291,20 @@ class _GenerateImageSection extends StatefulWidget {
 
 class _GenerateImageSectionState extends State<_GenerateImageSection> {
   final _promptController = TextEditingController();
-  final _apiKeyController = TextEditingController();
-  final _repository = GeminiImageRepository();
+  final _repository = NvidiaNimImageRepository();
+
+  static const _apiKey =
+      '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';
+  static const _proxyUrl = 'http://localhost:8080/generate_image';
 
   bool _isLoading = false;
+  bool _isSaving = false;
   Uint8List? _imageBytes;
   String? _error;
 
   @override
   void dispose() {
     _promptController.dispose();
-    _apiKeyController.dispose();
     super.dispose();
   }
 
@@ -309,8 +315,9 @@ class _GenerateImageSectionState extends State<_GenerateImageSection> {
       _imageBytes = null;
     });
     final result = await _repository.generateImage(
-      apiKey: _apiKeyController.text,
+      apiKey: _apiKey,
       prompt: _promptController.text,
+      proxyUrl: _proxyUrl,
     );
     if (!mounted) return;
     setState(() {
@@ -322,8 +329,39 @@ class _GenerateImageSectionState extends State<_GenerateImageSection> {
     });
   }
 
+  Future<void> _save() async {
+    final userId = context.read<AuthProvider>().currentUser?.id;
+    if (userId == null || _imageBytes == null || _imageBytes!.isEmpty) return;
+
+    final prompt = _promptController.text.trim();
+    if (prompt.isEmpty) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final imagePath = await saveGeneratedImageToLocal(_imageBytes!);
+      await context.read<GeneratedImageRepository>().insert(
+            userId: userId,
+            prompt: prompt,
+            imagePath: imagePath,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image saved to your history')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
     return AppPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,63 +369,77 @@ class _GenerateImageSectionState extends State<_GenerateImageSection> {
           AppSectionHeader(
             eyebrow: 'AI',
             title: 'Generate image from prompt',
-            subtitle:
-                'Describe the image you want and we\'ll generate it using Google Gemini. Enter your Gemini API key below.',
+            subtitle: 'Describe the image you want. Sign in to generate and save.',
           ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _apiKeyController,
-            decoration: const InputDecoration(
-              labelText: 'Gemini API key',
-              hintText: 'Paste your API key from Google AI Studio',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
-            autocorrect: false,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _promptController,
-            decoration: const InputDecoration(
-              labelText: 'Prompt',
-              hintText: 'e.g. A modern living room with a grey sofa and plants',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 2,
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _isLoading ? null : _generate,
-            icon: _isLoading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.auto_awesome, size: 20),
-            label: Text(_isLoading ? 'Generating…' : 'Generate image'),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 16),
-            AppMessagePanel(
-              title: 'Generation failed',
-              message: _error!,
-              icon: Icons.error_outline_rounded,
-            ),
-          ],
-          if (_imageBytes != null && _imageBytes!.isNotEmpty) ...[
+          if (!auth.isAuthenticated) ...[
             const SizedBox(height: 20),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 400),
-                child: Image.memory(
-                  _imageBytes!,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                ),
+            AppMessagePanel(
+              title: 'Sign in to generate images',
+              message: 'Generate and save images are available when you sign in.',
+              icon: Icons.login,
+              action: TextButton.icon(
+                onPressed: () => context.push('/login'),
+                icon: const Icon(Icons.login, size: 20),
+                label: const Text('Sign in'),
               ),
             ),
+          ] else ...[
+            const SizedBox(height: 20),
+            TextField(
+              controller: _promptController,
+              decoration: const InputDecoration(
+                labelText: 'Prompt',
+                hintText: 'e.g. A cozy living room',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _isLoading ? null : _generate,
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_awesome, size: 20),
+              label: Text(_isLoading ? 'Generating…' : 'Generate image'),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              AppMessagePanel(
+                title: 'Generation failed',
+                message: _error!,
+                icon: Icons.error_outline_rounded,
+              ),
+            ],
+            if (_imageBytes != null && _imageBytes!.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 400),
+                  child: Image.memory(
+                    _imageBytes!,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _isSaving ? null : _save,
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined, size: 20),
+                label: Text(_isSaving ? 'Saving…' : 'Save to my history'),
+              ),
+            ],
           ],
         ],
       ),

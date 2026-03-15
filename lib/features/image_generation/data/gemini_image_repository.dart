@@ -21,7 +21,7 @@ class GeminiImageResult {
 /// Uses the native image generation model and returns the first image part.
 class GeminiImageRepository {
   GeminiImageRepository({
-    this.modelId = 'gemini-2.0-flash-preview-image-generation',
+    this.modelId = 'gemini-2.5-flash',
     http.Client? client,
   }) : _client = client ?? http.Client();
 
@@ -48,6 +48,7 @@ class GeminiImageRepository {
       );
     }
 
+    // Using gemini-2.5-flash with generateContent and responseModalities
     final url = Uri.parse('$_baseUrl/$modelId:generateContent');
     final body = {
       'contents': [

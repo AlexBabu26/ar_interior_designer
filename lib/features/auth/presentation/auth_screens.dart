@@ -26,6 +26,9 @@ class AuthMenuButton extends StatelessWidget {
           case _AuthMenuAction.account:
             context.push('/account');
             break;
+          case _AuthMenuAction.generations:
+            context.push('/account/generations');
+            break;
           case _AuthMenuAction.admin:
             context.push('/admin');
             break;
@@ -61,6 +64,10 @@ class AuthMenuButton extends StatelessWidget {
             value: _AuthMenuAction.account,
             child: Text('Account'),
           ),
+          const PopupMenuItem(
+            value: _AuthMenuAction.generations,
+            child: Text('Image history'),
+          ),
           if (auth.isAdmin)
             const PopupMenuItem(
               value: _AuthMenuAction.admin,
@@ -84,7 +91,7 @@ class AuthMenuButton extends StatelessWidget {
   }
 }
 
-enum _AuthMenuAction { login, register, account, admin, logout }
+enum _AuthMenuAction { login, register, account, generations, admin, logout }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.redirectTo, this.message});
@@ -545,6 +552,12 @@ class AccountScreen extends StatelessWidget {
                   onPressed: () => context.push('/account/purchases'),
                   icon: const Icon(Icons.receipt_long_outlined),
                   label: const Text('View purchase history'),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/account/generations'),
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('Image history'),
                 ),
                 if (auth.isAdmin) ...[
                   const SizedBox(height: 14),
