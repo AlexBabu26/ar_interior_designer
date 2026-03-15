@@ -481,64 +481,50 @@ void showAccountModal(BuildContext context) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    useSafeArea: false,
+    useSafeArea: true,
     backgroundColor: Colors.transparent,
+    constraints: BoxConstraints(
+      maxWidth: MediaQuery.of(context).size.width,
+    ),
     builder: (modalContext) {
-      final mediaQuery = MediaQuery.of(modalContext);
-      final bottomPadding = mediaQuery.padding.bottom;
-      return SizedBox.expand(
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              width: mediaQuery.size.width,
-              constraints: BoxConstraints(
-                maxHeight: mediaQuery.size.height * 0.9 - bottomPadding,
-              ),
-              margin: EdgeInsets.zero,
-              decoration: BoxDecoration(
-                color: Theme.of(modalContext).scaffoldBackgroundColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: SafeArea(
-                top: false,
-                child: DraggableScrollableSheet(
-                  initialChildSize: 0.7,
-                  minChildSize: 0.4,
-                  maxChildSize: 1,
-                  builder: (_, scrollController) => Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Theme.of(modalContext).dividerColor,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                      Flexible(
-                        child: ListView(
-                          controller: scrollController,
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          children: [
-                            AccountContent(
-                              onNavigateAway: () => Navigator.of(modalContext).pop(),
-                              parentContext: context,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+      return DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (_, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(modalContext).scaffoldBackgroundColor,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 8),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(modalContext).dividerColor,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-            ),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  children: [
+                    AccountContent(
+                      onNavigateAway: () =>
+                          Navigator.of(modalContext).pop(),
+                      parentContext: context,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       );
