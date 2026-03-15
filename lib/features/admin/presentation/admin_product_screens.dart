@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/app_surfaces.dart';
 import '../../catalog/data/product_repository.dart';
 import '../../catalog/domain/product.dart';
 
@@ -13,21 +14,7 @@ class AdminProductsScreen extends StatelessWidget {
     final repository = context.read<ProductRepository>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Products'),
-        actions: [
-          IconButton(
-            onPressed: () => context.push('/admin/products/new'),
-            icon: const Icon(Icons.add),
-            tooltip: 'Add product',
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/admin/products/new'),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Product'),
-      ),
+      appBar: AppBar(title: const Text('Manage Products')),
       body: FutureBuilder<List<Product>>(
         future: repository.getAdminProducts(),
         builder: (context, snapshot) {
@@ -37,40 +24,82 @@ class AdminProductsScreen extends StatelessWidget {
 
           if (snapshot.hasError) {
             return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text('Unable to load products: ${snapshot.error}'),
+              child: AppPageWidth(
+                child: AppMessagePanel(
+                  title: 'Unable to load products',
+                  message: '${snapshot.error}',
+                  icon: Icons.inventory_2_outlined,
+                ),
               ),
             );
           }
 
           final products = snapshot.data ?? const <Product>[];
           if (products.isEmpty) {
-            return const Center(child: Text('No products found.'));
+            return Center(
+              child: AppPageWidth(
+                child: AppMessagePanel(
+                  title: 'No products found',
+                  message:
+                      'Create the first product to start building the showroom collection.',
+                  icon: Icons.add_business_outlined,
+                  action: FilledButton.icon(
+                    onPressed: () => context.push('/admin/products/new'),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add product'),
+                  ),
+                ),
+              ),
+            );
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(24),
-            itemBuilder: (context, index) {
-              final product = products[index];
-              return ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: Theme.of(context).dividerColor),
+          return ListView(
+            children: [
+              AppPageWidth(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppSectionHeader(
+                      eyebrow: 'Admin products',
+                      title: 'Collection management',
+                      subtitle:
+                          'Review active products, launch edits, and keep the showroom presentation consistent.',
+                      action: FilledButton.icon(
+                        onPressed: () => context.push('/admin/products/new'),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add product'),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    for (final product in products) ...[
+                      AppPanel(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.network(
+                              product.imageUrl,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          title: Text(product.name),
+                          subtitle: Text(
+                            '${product.isActive ? 'Active' : 'Inactive'} · \$${product.price.toStringAsFixed(2)}',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => context.push(
+                            '/admin/products/${product.id}/edit',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
                 ),
-                leading: CircleAvatar(
-                  backgroundImage: NetworkImage(product.imageUrl),
-                ),
-                title: Text(product.name),
-                subtitle: Text(
-                  '${product.isActive ? 'Active' : 'Inactive'} · \$${product.price.toStringAsFixed(2)}',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/admin/products/${product.id}/edit'),
-              );
-            },
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemCount: products.length,
+              ),
+            ],
           );
         },
       ),
@@ -154,68 +183,114 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(24),
           children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
-              validator: (value) =>
-                  value == null || value.trim().isEmpty ? 'Enter a name' : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Description'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter a description'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _priceController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Price'),
-              validator: (value) {
-                final parsed = double.tryParse(value ?? '');
-                return parsed == null ? 'Enter a valid price' : null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _imageUrlController,
-              decoration: const InputDecoration(labelText: 'Image URL'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter an image URL'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _modelUrlController,
-              decoration: const InputDecoration(labelText: 'Primary 3D Model URL'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter a model URL'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _categoriesController,
-              decoration: const InputDecoration(
-                labelText: 'Categories',
-                helperText: 'Comma-separated, for example Chairs, Living Room',
+            AppPageWidth(
+              maxWidth: 860,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppSectionHeader(
+                    eyebrow: widget.productId == null
+                        ? 'New product'
+                        : 'Edit product',
+                    title: widget.productId == null
+                        ? 'Add a new showroom piece'
+                        : 'Refine this showroom piece',
+                    subtitle:
+                        'Keep product content detailed, accurate, and presentation-ready for the storefront and AR flow.',
+                  ),
+                  const SizedBox(height: 24),
+                  AppPanel(
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(labelText: 'Name'),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? 'Enter a name'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _descriptionController,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText: 'Description',
+                          ),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? 'Enter a description'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _priceController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(labelText: 'Price'),
+                          validator: (value) {
+                            final parsed = double.tryParse(value ?? '');
+                            return parsed == null
+                                ? 'Enter a valid price'
+                                : null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _imageUrlController,
+                          decoration: const InputDecoration(
+                            labelText: 'Image URL',
+                          ),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? 'Enter an image URL'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _modelUrlController,
+                          decoration: const InputDecoration(
+                            labelText: 'Primary 3D Model URL',
+                          ),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? 'Enter a model URL'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _categoriesController,
+                          decoration: const InputDecoration(
+                            labelText: 'Categories',
+                            helperText:
+                                'Comma-separated, for example Chairs, Living Room',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SwitchListTile(
+                          value: _isActive,
+                          title: const Text('Active'),
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (value) =>
+                              setState(() => _isActive = value),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: _isSaving ? null : _save,
+                            child: Text(
+                              _isSaving ? 'Saving...' : 'Save Product',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              value: _isActive,
-              title: const Text('Active'),
-              contentPadding: EdgeInsets.zero,
-              onChanged: (value) => setState(() => _isActive = value),
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _isSaving ? null : _save,
-              child: Text(_isSaving ? 'Saving...' : 'Save Product'),
             ),
           ],
         ),

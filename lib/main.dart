@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app_router.dart';
-import 'app/theme_provider.dart';
+import 'app/app_theme.dart';
 import 'config/supabase_config.dart';
 import 'features/auth/application/auth_provider.dart';
 import 'features/auth/data/auth_gateway.dart';
@@ -22,7 +21,6 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         Provider<ProductRepository>(create: (_) => SupabaseProductRepository()),
         Provider<CartRepository>(create: (_) => SupabaseCartRepository()),
         Provider<OrderRepository>(create: (_) => SupabaseOrderRepository()),
@@ -32,7 +30,11 @@ Future<void> main() async {
             profileRepository: SupabaseProfileRepository(),
           )..start(),
         ),
-        ChangeNotifierProxyProvider2<CartRepository, AuthProvider, CartProvider>(
+        ChangeNotifierProxyProvider2<
+          CartRepository,
+          AuthProvider,
+          CartProvider
+        >(
           create: (_) => CartProvider(),
           update: (_, cartRepository, authProvider, cartProvider) {
             final provider = cartProvider ?? CartProvider();
@@ -67,36 +69,10 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
-    final textTheme = GoogleFonts.lexendTextTheme();
-
-    final lightTheme = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF2D3142),
-        primary: const Color(0xFF2D3142),
-        secondary: const Color(0xFFEF8354),
-        brightness: Brightness.light,
-      ),
-      textTheme: textTheme,
-    );
-
-    final darkTheme = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFFBFC0C0),
-        primary: const Color(0xFFBFC0C0),
-        secondary: const Color(0xFFEF8354),
-        brightness: Brightness.dark,
-      ),
-      textTheme: textTheme,
-    );
-
     return MaterialApp.router(
       title: 'AR Home',
-      theme: lightTheme,
-      darkTheme: darkTheme,
-      themeMode: themeProvider.themeMode,
+      theme: AppTheme.light(),
+      themeAnimationDuration: Duration.zero,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );

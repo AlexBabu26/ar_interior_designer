@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import 'package:myapp/app/theme_provider.dart';
 import 'package:myapp/features/auth/application/auth_provider.dart';
 import 'package:myapp/features/auth/data/auth_gateway.dart';
 import 'package:myapp/features/auth/data/profile_repository.dart';
@@ -33,7 +32,7 @@ void main() {
     HttpOverrides.global = previousHttpOverrides;
   });
 
-  testWidgets('shows the catalog shell for the current app', (
+  testWidgets('shows the editorial catalog shell for the refreshed app', (
     WidgetTester tester,
   ) async {
     final authProvider = AuthProvider(
@@ -45,7 +44,6 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
-          ChangeNotifierProvider(create: (_) => ThemeProvider()),
           ChangeNotifierProvider(create: (_) => CartProvider()),
           Provider<ProductRepository>(create: (_) => _FakeProductRepository()),
           ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
@@ -56,9 +54,54 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('AR Home'), findsOneWidget);
-    expect(find.text('Modern Living'), findsOneWidget);
-    expect(find.text('Smoke Test Chair'), findsOneWidget);
+    expect(find.text('Furniture for the way you live.'), findsOneWidget);
+    expect(
+      find.text(
+        'Curated pieces for calm rooms, tactile materials, and timeless silhouettes.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Shop the collection'), findsOneWidget);
+    expect(find.text('Smoke Test Chair'), findsAtLeastNWidgets(1));
     expect(find.byIcon(Icons.shopping_bag_outlined), findsOneWidget);
+    expect(find.byTooltip('Toggle theme'), findsNothing);
+    expect(find.byIcon(Icons.brightness_6_outlined), findsNothing);
+  });
+
+  testWidgets('hero arrow opens the featured product details', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final authProvider = AuthProvider(
+      authGateway: _FakeAuthGateway(),
+      profileRepository: _FakeProfileRepository(),
+    );
+    await authProvider.start();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => CartProvider()),
+          Provider<ProductRepository>(create: (_) => _FakeProductRepository()),
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ],
+        child: const MyApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byTooltip('Open featured product'));
+    await tester.tap(find.byTooltip('Open featured product'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Product details'), findsOneWidget);
+    expect(find.text('Smoke Test Chair'), findsWidgets);
   });
 }
 

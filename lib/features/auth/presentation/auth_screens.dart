@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../../app/theme_provider.dart';
+import '../../../app/app_surfaces.dart';
+import '../../../app/app_theme.dart';
 import '../application/auth_provider.dart';
 
 class AuthMenuButton extends StatelessWidget {
@@ -75,6 +76,7 @@ class AuthMenuButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: CircleAvatar(
           radius: 18,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           child: Icon(auth.isAuthenticated ? Icons.person : Icons.login),
         ),
       ),
@@ -158,9 +160,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = context.watch<AuthProvider>();
 
     return _AuthScaffold(
-      title: 'Login',
+      title: 'Welcome back',
       subtitle:
-          'Sign in with your email to continue to checkout and account tools.',
+          'Sign in to manage purchases, move faster through checkout, and keep your shortlist close at hand.',
       child: Form(
         key: _formKey,
         child: Column(
@@ -304,9 +306,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final auth = context.watch<AuthProvider>();
 
     return _AuthScaffold(
-      title: 'Register',
+      title: 'Create your account',
       subtitle:
-          'Create a customer account. Admin access is assigned separately.',
+          'Start a customer account for checkout, purchase history, and a calmer furniture shopping flow.',
       child: Form(
         key: _formKey,
         child: Column(
@@ -431,7 +433,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final auth = context.watch<AuthProvider>();
 
     return _AuthScaffold(
-      title: 'Forgot Password',
+      title: 'Reset your password',
       subtitle:
           'Enter your email and we will send reset instructions if the account exists.',
       child: Form(
@@ -474,71 +476,107 @@ class AccountScreen extends StatelessWidget {
     final profile = auth.profile;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Account'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.brightness_6_outlined),
-            onPressed: () => context.read<ThemeProvider>().toggleTheme(),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Account')),
       body: ListView(
-        padding: const EdgeInsets.all(24),
         children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.mail_outline),
-              title: const Text('Email'),
-              subtitle: Text(auth.currentUser?.email ?? 'Unknown'),
+          AppPageWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppSectionHeader(
+                  eyebrow: 'Account',
+                  title: 'Account overview',
+                  subtitle:
+                      'Profile details, order history, and account actions are gathered here in one calm workspace.',
+                ),
+                const SizedBox(height: 24),
+                AppPanel(
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: AppTheme.parchment,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: const Icon(Icons.person_outline, size: 32),
+                      ),
+                      const SizedBox(width: 18),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              profile?.displayName ?? 'Guest account',
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              auth.currentUser?.email ?? 'Unknown',
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _AccountInfoTile(
+                  icon: Icons.mail_outline,
+                  label: 'Email',
+                  value: auth.currentUser?.email ?? 'Unknown',
+                ),
+                const SizedBox(height: 14),
+                _AccountInfoTile(
+                  icon: Icons.badge_outlined,
+                  label: 'Display name',
+                  value: profile?.displayName ?? 'Not set',
+                ),
+                const SizedBox(height: 14),
+                _AccountInfoTile(
+                  icon: Icons.verified_user_outlined,
+                  label: 'Role',
+                  value: profile?.role.value ?? 'customer',
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: () => context.push('/account/purchases'),
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('View purchase history'),
+                ),
+                if (auth.isAdmin) ...[
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push('/admin'),
+                    icon: const Icon(Icons.admin_panel_settings_outlined),
+                    label: const Text('Open admin dashboard'),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final didSignOut = await context
+                        .read<AuthProvider>()
+                        .signOut();
+                    if (context.mounted) {
+                      if (didSignOut) {
+                        context.go('/');
+                      } else {
+                        _showSnackBar(
+                          context,
+                          context.read<AuthProvider>().errorMessage ??
+                              'Unable to sign out right now.',
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Logout'),
+                ),
+              ],
             ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.badge_outlined),
-              title: const Text('Display name'),
-              subtitle: Text(profile?.displayName ?? 'Not set'),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.verified_user_outlined),
-              title: const Text('Role'),
-              subtitle: Text(profile?.role.value ?? 'customer'),
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () => context.push('/account/purchases'),
-            icon: const Icon(Icons.receipt_long_outlined),
-            label: const Text('View purchase history'),
-          ),
-          if (auth.isAdmin) ...[
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => context.push('/admin'),
-              icon: const Icon(Icons.admin_panel_settings_outlined),
-              label: const Text('Open admin dashboard'),
-            ),
-          ],
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () async {
-              final didSignOut = await context.read<AuthProvider>().signOut();
-              if (context.mounted) {
-                if (didSignOut) {
-                  context.go('/');
-                } else {
-                  _showSnackBar(
-                    context,
-                    context.read<AuthProvider>().errorMessage ??
-                        'Unable to sign out right now.',
-                  );
-                }
-              }
-            },
-            icon: const Icon(Icons.logout),
-            label: const Text('Logout'),
           ),
         ],
       ),
@@ -554,26 +592,42 @@ class AdminDashboardScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Admin Dashboard')),
       body: ListView(
-        padding: const EdgeInsets.all(24),
         children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.inventory_2_outlined),
-              title: const Text('Product management'),
-              subtitle: const Text(
-                'Create, update, and control which products are active in the storefront.',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/admin/products'),
-            ),
-          ),
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.receipt_long_outlined),
-              title: Text('Transactions and analytics'),
-              subtitle: Text(
-                'Order reporting and analytics are still planned for a later phase.',
-              ),
+          AppPageWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppSectionHeader(
+                  eyebrow: 'Admin workspace',
+                  title: 'Control the collection',
+                  subtitle:
+                      'Keep product data accurate and maintain the same premium brand language without losing operational clarity.',
+                ),
+                const SizedBox(height: 24),
+                AppPanel(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.inventory_2_outlined),
+                    title: const Text('Product management'),
+                    subtitle: const Text(
+                      'Create, update, and control which products are active in the storefront.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/admin/products'),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const AppPanel(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.receipt_long_outlined),
+                    title: Text('Transactions and analytics'),
+                    subtitle: Text(
+                      'Order reporting and analytics are still planned for a later phase.',
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -591,17 +645,22 @@ class AuthLoadingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(
-              redirectTo == null
-                  ? 'Checking your session...'
-                  : 'Checking access for $redirectTo...',
+        child: AppPageWidth(
+          maxWidth: 520,
+          child: AppPanel(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(
+                  redirectTo == null
+                      ? 'Checking your session...'
+                      : 'Checking access for $redirectTo...',
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -622,22 +681,133 @@ class _AuthScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              Text(title, style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 8),
-              Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: 24),
-              child,
-            ],
+      appBar: AppBar(title: const Text('Account access')),
+      body: ListView(
+        children: [
+          AppPageWidth(
+            maxWidth: 1120,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 860;
+                final introPanel = AppPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ACCOUNT',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppTheme.burntSienna,
+                          letterSpacing: 1.8,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.displayMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppTheme.deepUmber,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const _AuthFeatureRow(
+                        icon: Icons.shopping_bag_outlined,
+                        text: 'Checkout with less friction',
+                      ),
+                      const SizedBox(height: 12),
+                      const _AuthFeatureRow(
+                        icon: Icons.receipt_long_outlined,
+                        text: 'Keep every purchase in one history view',
+                      ),
+                      const SizedBox(height: 12),
+                      const _AuthFeatureRow(
+                        icon: Icons.view_in_ar_outlined,
+                        text: 'Move between catalog, product detail, and AR',
+                      ),
+                    ],
+                  ),
+                );
+
+                final formPanel = AppPanel(child: child);
+
+                if (!isWide) {
+                  return Column(
+                    children: [
+                      introPanel,
+                      const SizedBox(height: 18),
+                      formPanel,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 6, child: introPanel),
+                    const SizedBox(width: 20),
+                    Expanded(flex: 5, child: formPanel),
+                  ],
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ),
+    );
+  }
+}
+
+class _AccountInfoTile extends StatelessWidget {
+  const _AccountInfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPanel(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(icon),
+        title: Text(label),
+        subtitle: Text(value),
+      ),
+    );
+  }
+}
+
+class _AuthFeatureRow extends StatelessWidget {
+  const _AuthFeatureRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppTheme.parchment,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+        ),
+      ],
     );
   }
 }
