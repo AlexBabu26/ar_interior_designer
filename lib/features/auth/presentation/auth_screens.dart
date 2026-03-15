@@ -507,6 +507,12 @@ class AccountScreen extends StatelessWidget {
               subtitle: Text(profile?.role.value ?? 'customer'),
             ),
           ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () => context.push('/account/purchases'),
+            icon: const Icon(Icons.receipt_long_outlined),
+            label: const Text('View purchase history'),
+          ),
           if (auth.isAdmin) ...[
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -549,21 +555,25 @@ class AdminDashboardScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Admin Dashboard')),
       body: ListView(
         padding: const EdgeInsets.all(24),
-        children: const [
+        children: [
           Card(
             child: ListTile(
-              leading: Icon(Icons.inventory_2_outlined),
-              title: Text('Product management'),
-              subtitle: Text(
-                'Phase 1 unlocks the protected admin entry point.',
+              leading: const Icon(Icons.inventory_2_outlined),
+              title: const Text('Product management'),
+              subtitle: const Text(
+                'Create, update, and control which products are active in the storefront.',
               ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/admin/products'),
             ),
           ),
-          Card(
+          const Card(
             child: ListTile(
-              leading: Icon(Icons.analytics_outlined),
-              title: Text('Analytics dashboard'),
-              subtitle: Text('Planned for a later phase of the roadmap.'),
+              leading: Icon(Icons.receipt_long_outlined),
+              title: Text('Transactions and analytics'),
+              subtitle: Text(
+                'Order reporting and analytics are still planned for a later phase.',
+              ),
             ),
           ),
         ],

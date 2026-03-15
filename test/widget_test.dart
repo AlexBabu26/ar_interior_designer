@@ -77,9 +77,22 @@ class _FakeProductRepository extends ProductRepository {
   Future<List<Product>> getProducts() async => [_product];
 
   @override
+  Future<List<Product>> getAdminProducts() async => [_product];
+
+  @override
   Future<Product?> getProductById(String id) async {
     return id == _product.id ? _product : null;
   }
+
+  @override
+  Future<String> saveProduct(Product product) async => product.id;
+
+  @override
+  Future<void> savePrimaryModel({
+    required String productId,
+    required String modelUrl,
+    String modelType = 'glb',
+  }) async {}
 }
 
 class _FakeAuthGateway implements AuthGateway {

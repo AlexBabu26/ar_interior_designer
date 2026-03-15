@@ -10,8 +10,10 @@ import 'config/supabase_config.dart';
 import 'features/auth/application/auth_provider.dart';
 import 'features/auth/data/auth_gateway.dart';
 import 'features/auth/data/profile_repository.dart';
+import 'features/cart/data/cart_repository.dart';
 import 'features/cart/presentation/cart_provider.dart';
 import 'features/catalog/data/product_repository.dart';
+import 'features/orders/data/order_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,13 +23,25 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => CartProvider()),
-        Provider<ProductRepository>(create: (_) => ProductRepository()),
+        Provider<ProductRepository>(create: (_) => SupabaseProductRepository()),
+        Provider<CartRepository>(create: (_) => SupabaseCartRepository()),
+        Provider<OrderRepository>(create: (_) => SupabaseOrderRepository()),
         ChangeNotifierProvider<AuthProvider>(
           create: (_) => AuthProvider(
             authGateway: SupabaseAuthGateway(),
             profileRepository: SupabaseProfileRepository(),
           )..start(),
+        ),
+        ChangeNotifierProxyProvider2<CartRepository, AuthProvider, CartProvider>(
+          create: (_) => CartProvider(),
+          update: (_, cartRepository, authProvider, cartProvider) {
+            final provider = cartProvider ?? CartProvider();
+            provider.configure(
+              repository: cartRepository,
+              authProvider: authProvider,
+            );
+            return provider;
+          },
         ),
       ],
       child: const MyApp(),

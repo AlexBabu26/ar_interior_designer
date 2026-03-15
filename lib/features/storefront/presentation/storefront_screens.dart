@@ -8,6 +8,7 @@ import '../../auth/presentation/auth_screens.dart';
 import '../../cart/presentation/cart_provider.dart';
 import '../../catalog/data/product_repository.dart';
 import '../../catalog/domain/product.dart';
+import '../../orders/data/order_repository.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -74,6 +75,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text('Unable to load products: ${snapshot.error}'),
+              ),
+            );
           }
 
           final products = snapshot.data ?? <Product>[];
@@ -203,8 +213,16 @@ class ProductDetailScreen extends StatelessWidget {
       body: FutureBuilder<Product?>(
         future: repository.getProductById(productId),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Unable to load product: ${snapshot.error}'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: Text('Product not found.'));
           }
 
           final product = snapshot.data!;
@@ -302,8 +320,16 @@ class ARViewScreen extends StatelessWidget {
       body: FutureBuilder<Product?>(
         future: repository.getProductById(productId),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Unable to load product: ${snapshot.error}'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: Text('Product not found.'));
           }
 
           final product = snapshot.data!;
@@ -327,7 +353,7 @@ class ARViewScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: const [
                       BoxShadow(color: Colors.black12, blurRadius: 10),
@@ -499,6 +525,7 @@ class CheckoutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
+    final orderRepository = context.read<OrderRepository>();
 
     if (cart.items.isEmpty) {
       return Scaffold(
@@ -546,17 +573,34 @@ class CheckoutScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: () {
-              cart.clear();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Checkout complete. Order history arrives in phase 2.',
-                  ),
-                ),
-              );
-              context.go('/account');
-            },
+            onPressed: cart.isBusy
+                ? null
+                : () async {
+                    try {
+                      await orderRepository.checkoutActiveCart();
+                      await cart.refresh();
+                      if (!context.mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Checkout complete. Your order is now in purchase history.',
+                          ),
+                        ),
+                      );
+                      context.go('/account/purchases');
+                    } catch (error) {
+                      if (!context.mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Unable to complete checkout: $error'),
+                        ),
+                      );
+                    }
+                  },
             child: const Text('Place order'),
           ),
         ],

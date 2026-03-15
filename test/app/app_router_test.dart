@@ -14,6 +14,17 @@ void main() {
       expect(redirect, '/login?from=%2Fcart%2Fcheckout');
     });
 
+    test('redirects guests from purchase history to login', () {
+      final redirect = resolveAppRedirect(
+        location: '/account/purchases',
+        isInitialized: true,
+        isAuthenticated: false,
+        isAdmin: false,
+      );
+
+      expect(redirect, '/login?from=%2Faccount%2Fpurchases');
+    });
+
     test('allows guests to keep browsing the catalog', () {
       final redirect = resolveAppRedirect(
         location: '/',
@@ -51,6 +62,17 @@ void main() {
     test('redirects non-admin users away from admin routes', () {
       final redirect = resolveAppRedirect(
         location: '/admin',
+        isInitialized: true,
+        isAuthenticated: true,
+        isAdmin: false,
+      );
+
+      expect(redirect, '/');
+    });
+
+    test('redirects non-admin users away from nested admin routes', () {
+      final redirect = resolveAppRedirect(
+        location: '/admin/products',
         isInitialized: true,
         isAuthenticated: true,
         isAdmin: false,

@@ -1,7 +1,9 @@
 import 'package:go_router/go_router.dart';
 
+import '../features/admin/presentation/admin_product_screens.dart';
 import '../features/auth/application/auth_provider.dart';
 import '../features/auth/presentation/auth_screens.dart';
+import '../features/orders/presentation/purchase_history_screen.dart';
 import '../features/storefront/presentation/storefront_screens.dart';
 
 String? resolveAppRedirect({
@@ -45,9 +47,14 @@ String? resolveAppRedirect({
   }
 
   const guestOnlyRoutes = <String>{'/login', '/register', '/forgot-password'};
-  const protectedRoutes = <String>{'/account', '/cart/checkout', '/admin'};
+  final requiresAuth =
+      location == '/account' ||
+      location.startsWith('/account/') ||
+      location == '/cart/checkout' ||
+      location == '/admin' ||
+      location.startsWith('/admin/');
 
-  if (!isAuthenticated && protectedRoutes.contains(location)) {
+  if (!isAuthenticated && requiresAuth) {
     return Uri(
       path: '/login',
       queryParameters: <String, String>{'from': preservedDestination},
@@ -58,7 +65,7 @@ String? resolveAppRedirect({
     return normalizedRedirect ?? '/account';
   }
 
-  if (location == '/admin' && !isAdmin) {
+  if ((location == '/admin' || location.startsWith('/admin/')) && !isAdmin) {
     return '/';
   }
 
@@ -144,10 +151,34 @@ GoRouter createAppRouter(AuthProvider authProvider) {
       GoRoute(
         path: '/account',
         builder: (context, state) => const AccountScreen(),
+        routes: [
+          GoRoute(
+            path: 'purchases',
+            builder: (context, state) => const PurchaseHistoryScreen(),
+          ),
+        ],
       ),
       GoRoute(
         path: '/admin',
         builder: (context, state) => const AdminDashboardScreen(),
+        routes: [
+          GoRoute(
+            path: 'products',
+            builder: (context, state) => const AdminProductsScreen(),
+            routes: [
+              GoRoute(
+                path: 'new',
+                builder: (context, state) => const AdminProductFormScreen(),
+              ),
+              GoRoute(
+                path: ':id/edit',
+                builder: (context, state) => AdminProductFormScreen(
+                  productId: state.pathParameters['id'],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );

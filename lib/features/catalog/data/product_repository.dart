@@ -1,55 +1,116 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../domain/product.dart';
 
-class ProductRepository {
-  // Use real public GLB models for testing
-  final List<Product> _products = [
-    Product(
-      id: '1',
-      name: 'Eames Lounge Chair',
-      description:
-          'The Eames Lounge Chair and Ottoman are furnishings made of molded plywood and leather, designed by Charles and Ray Eames.',
-      price: 4999.00,
-      imageUrl:
-          'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=600',
-      categories: ['Chairs', 'Living Room'],
-      modelUrl:
-          'https://modelviewer.dev/shared-assets/models/Astronaut.glb', // Placeholder real model
-    ),
-    Product(
-      id: '2',
-      name: 'Noguchi Table',
-      description:
-          'A piece of modern furniture first produced in the mid-20th century. Introduced by Herman Miller in 1947.',
-      price: 1250.00,
-      imageUrl:
-          'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&q=80&w=600',
-      categories: ['Tables', 'Living Room'],
-      modelUrl:
-          'https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb', // Placeholder real model
-    ),
-    Product(
-      id: '4',
-      name: 'Tufty-Time Sofa',
-      description:
-          'Patricia Urquiola designed Tufty-Time, an informal seating system that combines comfort with a modular spirit.',
-      price: 3200.00,
-      imageUrl:
-          'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=600',
-      categories: ['Sofas', 'Living Room'],
-      modelUrl: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
-    ),
-  ];
+abstract class ProductRepository {
+  Future<List<Product>> getProducts();
 
+  Future<List<Product>> getAdminProducts();
+
+  Future<Product?> getProductById(String id);
+
+  Future<String> saveProduct(Product product);
+
+  Future<void> savePrimaryModel({
+    required String productId,
+    required String modelUrl,
+    String modelType,
+  });
+}
+
+class SupabaseProductRepository implements ProductRepository {
+  SupabaseProductRepository({SupabaseClient? client})
+    : _client = client ?? Supabase.instance.client;
+
+  final SupabaseClient _client;
+
+  @override
   Future<List<Product>> getProducts() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return _products;
+    final response = await _client
+        .from('products')
+        .select('*, product_models(*)')
+        .eq('is_active', true)
+        .order('created_at', ascending: false);
+
+    return (response as List<dynamic>)
+        .map((row) => Product.fromJson(Map<String, dynamic>.from(row as Map)))
+        .toList();
   }
 
+  @override
+  Future<List<Product>> getAdminProducts() async {
+    final response = await _client
+        .from('products')
+        .select('*, product_models(*)')
+        .order('created_at', ascending: false);
+
+    return (response as List<dynamic>)
+        .map((row) => Product.fromJson(Map<String, dynamic>.from(row as Map)))
+        .toList();
+  }
+
+  @override
   Future<Product?> getProductById(String id) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    return _products.firstWhere(
-      (p) => p.id == id,
-      orElse: () => _products.first,
+    final response = await _client
+        .from('products')
+        .select('*, product_models(*)')
+        .eq('id', id)
+        .maybeSingle();
+
+    if (response == null) {
+      return null;
+    }
+
+    return Product.fromJson(Map<String, dynamic>.from(response as Map));
+  }
+
+  @override
+  Future<String> saveProduct(Product product) async {
+    final payload = product.toJson();
+    if (product.id.isEmpty) {
+      payload.remove('id');
+    }
+
+    final response = await _client
+        .from('products')
+        .upsert(payload)
+        .select('id')
+        .single();
+
+    return response['id'] as String;
+  }
+
+  @override
+  Future<void> savePrimaryModel({
+    required String productId,
+    required String modelUrl,
+    String modelType = 'glb',
+  }) async {
+    await _client.from('product_models').update({'is_primary': false}).eq(
+      'product_id',
+      productId,
     );
+
+    final existing = await _client
+        .from('product_models')
+        .select('id')
+        .eq('product_id', productId)
+        .eq('model_url', modelUrl)
+        .maybeSingle();
+
+    if (existing != null) {
+      await _client
+          .from('product_models')
+          .update({'is_primary': true, 'model_type': modelType})
+          .eq('id', existing['id'] as String);
+      return;
+    }
+
+    await _client.from('product_models').insert({
+      'product_id': productId,
+      'model_url': modelUrl,
+      'model_type': modelType,
+      'is_primary': true,
+    });
   }
 }
