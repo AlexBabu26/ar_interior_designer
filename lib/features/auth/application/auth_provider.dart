@@ -31,6 +31,7 @@ class AuthProvider with ChangeNotifier {
   bool get isBusy => _isBusy;
   bool get isAuthenticated => _currentUser != null;
   bool get isAdmin => _profile?.isAdmin ?? false;
+  bool get isCarpenter => _profile?.isCarpenter ?? false;
   String? get errorMessage => _errorMessage;
   String? get infoMessage => _infoMessage;
 

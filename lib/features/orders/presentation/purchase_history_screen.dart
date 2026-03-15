@@ -6,8 +6,10 @@ import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/currency.dart';
+import '../../modifications/data/modification_repository.dart';
 import '../data/order_repository.dart';
 import '../domain/order.dart';
+import '../domain/order_item.dart';
 
 class PurchaseHistoryScreen extends StatelessWidget {
   const PurchaseHistoryScreen({super.key});
@@ -116,36 +118,10 @@ class PurchaseHistoryScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 18),
                             for (final item in order.items) ...[
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.productName,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleMedium,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Qty: ${item.quantity}',
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    formatCurrency(item.lineTotal),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                ],
+                              _OrderItemRow(
+                                orderId: order.id,
+                                orderNumber: order.orderNumber,
+                                item: item,
                               ),
                               if (item != order.items.last)
                                 const Divider(height: 28),
@@ -196,4 +172,94 @@ String _formatDate(DateTime date) {
     'Dec',
   ][local.month - 1];
   return '$month ${local.day}, ${local.year}';
+}
+
+class _OrderItemRow extends StatefulWidget {
+  const _OrderItemRow({
+    required this.orderId,
+    required this.orderNumber,
+    required this.item,
+  });
+
+  final String orderId;
+  final String orderNumber;
+  final OrderItem item;
+
+  @override
+  State<_OrderItemRow> createState() => _OrderItemRowState();
+}
+
+class _OrderItemRowState extends State<_OrderItemRow> {
+  bool _loading = false;
+
+  Future<void> _openModificationChat() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final repo = context.read<ModificationRepository>();
+      var modificationId = await repo.getModificationIdByOrderItemId(widget.item.id);
+      if (modificationId == null) {
+        final created = await repo.createModification(
+          orderId: widget.orderId,
+          orderItemId: widget.item.id,
+        );
+        modificationId = created.id;
+      }
+      if (!context.mounted) return;
+      context.push('/account/modifications/$modificationId');
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to open chat: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.productName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Qty: ${item.quantity}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              formatCurrency(item.lineTotal),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: _loading ? null : _openModificationChat,
+          icon: _loading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.chat_bubble_outline, size: 18),
+          label: const Text('Request modification / Open chat'),
+        ),
+      ],
+    );
+  }
 }

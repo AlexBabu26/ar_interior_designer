@@ -1,10 +1,13 @@
 import 'package:go_router/go_router.dart';
 
 import '../features/admin/presentation/admin_analytics_screen.dart';
+import '../features/admin/presentation/admin_create_carpenter_screen.dart';
 import '../features/admin/presentation/admin_product_screens.dart';
 import '../features/auth/application/auth_provider.dart';
 import '../features/auth/presentation/auth_screens.dart';
 import '../features/image_generation/presentation/generations_history_screen.dart';
+import '../features/modifications/presentation/modification_chat_screen.dart';
+import '../features/modifications/presentation/modification_list_screen.dart';
 import '../features/orders/presentation/purchase_history_screen.dart';
 import '../features/storefront/presentation/storefront_screens.dart';
 
@@ -15,6 +18,7 @@ String? resolveAppRedirect({
   required bool isInitialized,
   required bool isAuthenticated,
   required bool isAdmin,
+  bool isCarpenter = false,
 }) {
   final pendingLocation = _normalizeRouteTarget(requestedLocation) ?? location;
   final requestedUri = Uri.tryParse(requestedLocation ?? pendingLocation);
@@ -71,6 +75,11 @@ String? resolveAppRedirect({
     return '/';
   }
 
+  if (isCarpenter &&
+      (location == '/account/purchases' || location == '/account/generations')) {
+    return '/account';
+  }
+
   return null;
 }
 
@@ -86,6 +95,7 @@ GoRouter createAppRouter(AuthProvider authProvider) {
         isInitialized: authProvider.isInitialized,
         isAuthenticated: authProvider.isAuthenticated,
         isAdmin: authProvider.isAdmin,
+        isCarpenter: authProvider.isCarpenter,
       );
     },
     routes: [
@@ -162,7 +172,27 @@ GoRouter createAppRouter(AuthProvider authProvider) {
             path: 'generations',
             builder: (context, state) => const GenerationsHistoryScreen(),
           ),
+          GoRoute(
+            path: 'modifications',
+            builder: (context, state) => const ModificationListScreen(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (context, state) => ModificationChatScreen(
+                  modificationId: state.pathParameters['id']!,
+                ),
+              ),
+            ],
+          ),
         ],
+      ),
+      GoRoute(
+        path: '/admin/create-carpenter',
+        builder: (context, state) => const AdminCreateCarpenterScreen(),
+      ),
+      GoRoute(
+        path: '/admin/modifications',
+        builder: (context, state) => const ModificationListScreen(),
       ),
       GoRoute(
         path: '/admin',

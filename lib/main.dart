@@ -15,6 +15,7 @@ import 'features/cart/data/cart_repository.dart';
 import 'features/cart/presentation/cart_provider.dart';
 import 'features/catalog/data/product_repository.dart';
 import 'features/image_generation/data/generated_image_repository.dart';
+import 'features/modifications/data/modification_repository.dart';
 import 'features/orders/data/order_repository.dart';
 
 Future<void> main() async {
@@ -32,6 +33,9 @@ Future<void> main() async {
         Provider<ProductRepository>(create: (_) => SupabaseProductRepository()),
         Provider<CartRepository>(create: (_) => SupabaseCartRepository()),
         Provider<OrderRepository>(create: (_) => SupabaseOrderRepository()),
+        Provider<ModificationRepository>(
+          create: (_) => SupabaseModificationRepository(),
+        ),
         Provider<GeneratedImageRepository>(
           create: (_) => SupabaseGeneratedImageRepository(),
         ),

@@ -65,10 +65,11 @@ class AuthMenuButton extends StatelessWidget {
             value: _AuthMenuAction.account,
             child: Text('Account'),
           ),
-          const PopupMenuItem(
-            value: _AuthMenuAction.generations,
-            child: Text('Image history'),
-          ),
+          if (!auth.isCarpenter)
+            const PopupMenuItem(
+              value: _AuthMenuAction.generations,
+              child: Text('Image history'),
+            ),
           if (auth.isAdmin)
             const PopupMenuItem(
               value: _AuthMenuAction.admin,
@@ -657,17 +658,32 @@ class AccountContent extends StatelessWidget {
           value: profile?.role.value ?? 'customer',
         ),
         const SizedBox(height: 20),
-        FilledButton.icon(
-          onPressed: () => _navigate(context, '/account/purchases'),
-          icon: const Icon(Icons.receipt_long_outlined),
-          label: const Text('View purchase history'),
+        if (!auth.isCarpenter) ...[
+          FilledButton.icon(
+            onPressed: () => _navigate(context, '/account/purchases'),
+            icon: const Icon(Icons.receipt_long_outlined),
+            label: const Text('View purchase history'),
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: () => _navigate(context, '/account/generations'),
+            icon: const Icon(Icons.auto_awesome),
+            label: const Text('Image history'),
+          ),
+          const SizedBox(height: 14),
+        ],
+        OutlinedButton.icon(
+          onPressed: () => _navigate(context, '/account/modifications'),
+          icon: const Icon(Icons.chat_bubble_outline),
+          label: Text(
+            auth.isCarpenter
+                ? 'Modification requests'
+                : auth.isAdmin
+                    ? 'View all modification chats'
+                    : 'My modification requests',
+          ),
         ),
         const SizedBox(height: 14),
-        OutlinedButton.icon(
-          onPressed: () => _navigate(context, '/account/generations'),
-          icon: const Icon(Icons.auto_awesome),
-          label: const Text('Image history'),
-        ),
         if (auth.isAdmin) ...[
           const SizedBox(height: 14),
           OutlinedButton.icon(
@@ -749,6 +765,32 @@ class AdminDashboardScreen extends StatelessWidget {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => context.push('/admin/analytics'),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                AppPanel(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.person_add_outlined),
+                    title: const Text('Create carpenter account'),
+                    subtitle: const Text(
+                      'Add a new user with the carpenter role so they can sign in.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/admin/create-carpenter'),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                AppPanel(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.chat_bubble_outline),
+                    title: const Text('Modification chats'),
+                    subtitle: const Text(
+                      'View all customer–carpenter modification threads and chat history.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/admin/modifications'),
                   ),
                 ),
               ],
