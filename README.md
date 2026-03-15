@@ -1,83 +1,250 @@
 # AR Commerce Platform
 
-This project is a mobile-first e-commerce platform where users can place real products into their environment using augmented reality and purchase them instantly.
+A mobile-first e-commerce platform where users can place real products into their environment using augmented reality and purchase them. The Flutter app uses **Supabase** for auth, catalog, cart, and orders; an optional **Dart Frog** backend is included in the `server/` directory.
 
-## Getting Started on Windows 11
+---
 
-Follow these steps to set up and run the AR Commerce Platform on your Windows 11 PC.
+## Project structure
+
+| Path        | Description                          |
+|------------|--------------------------------------|
+| `/` (root) | Flutter app — run `flutter` from here |
+| `/server`  | Dart Frog API backend                |
+| `/lib`     | Flutter app source code              |
+| `/Docs`    | Design and documentation             |
+
+---
+
+## Getting started on Windows 11
+
+Use **PowerShell** for all steps below (unless noted). Open PowerShell via Start menu or `Win + X` → “Windows PowerShell”.
 
 ### Prerequisites
 
-*   **Git:** Download and install Git from [git-scm.com](https://git-scm.com/downloads).
-*   **VS Code (Recommended):** Download and install Visual Studio Code from [code.visualstudio.com](https://code.visualstudio.com/). Install the Flutter extension.
+- **Git** — [git-scm.com/downloads](https://git-scm.com/downloads)
+- **VS Code (recommended)** — [code.visualstudio.com](https://code.visualstudio.com/) with the **Flutter** extension
+- **Android Studio** (for Android) — [developer.android.com/studio](https://developer.android.com/studio) — install if you plan to run on emulator or device; `flutter doctor` will guide you
 
-### 1. Install Flutter SDK
+---
 
-1.  **Download Flutter:** Go to the [Flutter SDK archive](https://docs.flutter.dev/release/archive) and download the latest stable release for Windows.
-2.  **Extract the archive:** Extract the `flutter_windows_x.x.x-stable.zip` file to a preferred installation location (e.g., `C:\src\flutter`). Do NOT install Flutter in a directory like `C:\Program Files\` that requires elevated privileges.
-3.  **Update your PATH:**
-    *   In the Windows search bar, type `env` and select **"Edit the system environment variables"**.
-    *   In the System Properties dialog, click **"Environment Variables..."**.
-    *   Under "User variables for <your-username>", select `Path` and click **"Edit..."**.
-    *   Click **"New"** and add the path to the `bin` folder inside your Flutter installation directory (e.g., `C:\src\flutter\bin`).
-    *   Click "OK" on all dialogs to close.
-4.  **Verify Flutter Installation:** Open a new Command Prompt or PowerShell window and run:
-    ```bash
-    flutter doctor
-    ```
-    This command checks your environment and displays a report of the status of your Flutter installation. Follow any suggestions it provides for missing dependencies (e.g., Android SDK, Android Studio).
+## 1. Install Flutter SDK
 
-### 2. Install Dart Frog CLI
+Flutter includes the Dart SDK; you do not install Dart separately.
 
-The backend is built with Dart Frog. You need to install its command-line interface.
+### 1.1 Download and extract
 
-1.  Open a Command Prompt or PowerShell and run:
-    ```bash
-    dart pub global activate dart_frog_cli
-    ```
-2.  **Add Dart's global bin to PATH (if not already there):**
-    *   The command above will tell you where `dart pub global` installed the executables (e.g., `C:\Users\<your-username>\AppData\Local\Pub\Cache\bin`).
-    *   Add this path to your system's `Path` environment variable, similar to how you added Flutter's `bin` directory in step 1.3.
+1. Open [Flutter SDK archive](https://docs.flutter.dev/release/archive) and download the latest **stable** Windows zip (e.g. `flutter_windows_x.x.x-stable.zip`).
+2. Extract the zip to a folder **without** spaces or elevated permissions, for example:
+   - `C:\src\flutter`
+   - or `C:\Users\<YourUsername>\flutter`
+3. **Do not** use `C:\Program Files\` or other system-protected paths.
 
-### 3. Clone the Project
+### 1.2 Add Flutter to PATH
 
-1.  Open Git Bash, Command Prompt, or PowerShell.
-2.  Navigate to the directory where you want to clone the project.
-3.  Clone the repository:
-    ```bash
-    git clone <repository-url>
-    cd <project-folder-name>
-    ```
+Add the `bin` folder inside your Flutter install directory to your user **Path** so `flutter` and `dart` work in any terminal.
 
-### 4. Run the Dart Frog Backend
+**Option A — GUI**
 
-1.  Navigate into the `server` directory from your project root:
-    ```bash
-    cd server
-    ```
-2.  Install backend dependencies:
-    ```bash
-    dart pub get
-    ```
-3.  Start the Dart Frog development server:
-    ```bash
-    dart_frog dev
-    ```
-    The server will start, usually on `http://localhost:8080`. Keep this terminal window open.
+1. Press `Win`, type **env**, open **Edit the system environment variables**.
+2. Click **Environment Variables...**.
+3. Under **User variables**, select **Path** → **Edit...**.
+4. Click **New** and add:
+   - `C:\src\flutter\bin`  
+   (or your path, e.g. `C:\Users\<YourUsername>\flutter\bin`).
+5. Confirm with **OK** on all dialogs.
 
-### 5. Run the Flutter Client
+**Option B — PowerShell (current user)**
 
-1.  Open a **NEW** Command Prompt or PowerShell window.
-2.  Navigate back to the root of your project (e.g., `cd ..` if you are in the `server` directory).
-3.  Install frontend dependencies:
-    ```bash
-    flutter pub get
-    ```
-4.  **Choose a device to run on:**
-    *   To see available devices: `flutter devices`
-    *   **Web (Chrome):** `flutter run -d chrome`
-    *   **Android Emulator:** Start an emulator from Android Studio, then `flutter run`
-    *   **Windows Desktop App:** `flutter run -d windows` (if Windows development is configured via `flutter doctor`)
-    *   **iOS Simulator/Physical Device:** Requires macOS.
+Run in PowerShell (replace with your actual Flutter path):
 
-The Flutter application will launch on your selected device, connecting to the running Dart Frog backend.
+```powershell
+$flutterPath = "C:\src\flutter\bin"
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$flutterPath", "User")
+```
+
+Then **close and reopen PowerShell** (and VS Code if open) so the new PATH is loaded.
+
+### 1.3 Verify Flutter and Dart
+
+In a **new** PowerShell window:
+
+```powershell
+flutter doctor
+dart --version
+```
+
+- Fix any issues reported by `flutter doctor` (e.g. Android licenses, Android Studio).
+- You should see a Dart version (e.g. `Dart SDK version: 3.x.x`).
+
+---
+
+## 2. Install Dart Frog CLI (for the backend)
+
+The `server/` app uses [Dart Frog](https://dartfrog.vgv.dev/). Install the CLI and ensure its scripts are on your PATH.
+
+### 2.1 Activate the CLI
+
+In PowerShell:
+
+```powershell
+dart pub global activate dart_frog_cli
+```
+
+### 2.2 Add Dart global bin to PATH
+
+Global Dart packages install to a folder like:
+
+`C:\Users\<YourUsername>\AppData\Local\Pub\Cache\bin`
+
+Add this to your user **Path** using one of the following.
+
+**Option A — GUI**
+
+1. **Edit the system environment variables** → **Environment Variables...** → User **Path** → **Edit...**.
+2. **New** → paste:  
+   `C:\Users\<YourUsername>\AppData\Local\Pub\Cache\bin`  
+   (replace `<YourUsername>` with your Windows username).
+3. **OK** on all dialogs.
+
+**Option B — PowerShell**
+
+```powershell
+$dartGlobalBin = "$env:LOCALAPPDATA\Pub\Cache\bin"
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$dartGlobalBin", "User")
+```
+
+Close and reopen PowerShell.
+
+### 2.3 Verify Dart Frog
+
+```powershell
+dart_frog --version
+```
+
+You should see a version string. If the command is not found, the PATH from step 2.2 is not visible in that session.
+
+---
+
+## 3. Clone the project
+
+In PowerShell:
+
+```powershell
+cd D:\Projects\Academic Projects
+git clone <repository-url> ar_interior_designer
+cd ar_interior_designer
+```
+
+(Adjust paths and repo URL as needed.)
+
+---
+
+## 4. Run the Dart Frog backend (optional)
+
+If you use the local API in `server/`:
+
+1. In PowerShell, from the **project root**:
+
+```powershell
+cd server
+dart pub get
+dart_frog dev
+```
+
+2. Leave this window open. The server usually runs at **http://localhost:8080**.
+
+---
+
+## 5. Run the Flutter app from PowerShell
+
+The Flutter app lives in the **project root**. Run all commands from there.
+
+### 5.1 Install dependencies
+
+From the project root in PowerShell:
+
+```powershell
+cd D:\Projects\Academic Projects\ar_interior_designer
+flutter pub get
+```
+
+### 5.2 Choose a device and run
+
+List devices:
+
+```powershell
+flutter devices
+```
+
+Then run on one of the following.
+
+**Chrome (web):**
+
+```powershell
+flutter run -d chrome
+```
+
+**Windows desktop:**
+
+```powershell
+flutter run -d windows
+```
+
+(Requires Windows desktop support; `flutter doctor` will mention it.)
+
+**Android emulator or device:**
+
+1. Start an emulator from Android Studio (or connect a device with USB debugging).
+2. Run:
+
+```powershell
+flutter run
+```
+
+Or pick a device ID from `flutter devices`:
+
+```powershell
+flutter run -d <device_id>
+```
+
+The app will connect to the configured **Supabase** project (see `lib/config/supabase_config.dart`). If you use the Dart Frog backend, keep it running in the other terminal.
+
+---
+
+## Quick reference — PowerShell commands
+
+From **project root** (`ar_interior_designer`):
+
+| Task              | Command              |
+|-------------------|----------------------|
+| Get dependencies  | `flutter pub get`    |
+| List devices      | `flutter devices`   |
+| Run (default)     | `flutter run`        |
+| Run on Chrome     | `flutter run -d chrome` |
+| Run on Windows    | `flutter run -d windows` |
+| Run tests         | `flutter test`       |
+| Check environment | `flutter doctor`     |
+
+From **project root** for backend:
+
+| Task        | Command           |
+|------------|--------------------|
+| Backend dir| `cd server`       |
+| Get deps   | `dart pub get`     |
+| Start API  | `dart_frog dev`    |
+
+---
+
+## Troubleshooting
+
+- **`flutter` or `dart` not found**  
+  PATH not set or terminal not restarted. Add Flutter `bin` (and Dart `Pub\Cache\bin` if using global packages), then close and reopen PowerShell/VS Code.
+
+- **`dart_frog` not found**  
+  Add `%LOCALAPPDATA%\Pub\Cache\bin` to user PATH and restart the terminal.
+
+- **Android / Windows not available**  
+  Run `flutter doctor` and follow its instructions (e.g. accept Android licenses, install Visual Studio for Windows desktop).
+
+- **Supabase**  
+  The app uses Supabase by default. Configure URL and anon key in `lib/config/supabase_config.dart` for your project.
