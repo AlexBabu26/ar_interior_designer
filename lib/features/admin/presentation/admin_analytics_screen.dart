@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
+import '../../../app/currency.dart';
 import '../../catalog/data/product_repository.dart';
 import '../../orders/data/order_repository.dart';
 import '../../orders/domain/order.dart';
@@ -82,7 +83,7 @@ class AdminAnalyticsScreen extends StatelessWidget {
                                   _StatCard(
                                     icon: Icons.attach_money,
                                     label: 'Total revenue',
-                                    value: '\$${totalRevenue.toStringAsFixed(2)}',
+                                    value: formatCurrency(totalRevenue),
                                   ),
                                   const SizedBox(height: 14),
                                   _StatCard(
@@ -107,8 +108,7 @@ class AdminAnalyticsScreen extends StatelessWidget {
                                     child: _StatCard(
                                       icon: Icons.attach_money,
                                       label: 'Total revenue',
-                                      value:
-                                          '\$${totalRevenue.toStringAsFixed(2)}',
+                                      value: formatCurrency(totalRevenue),
                                     ),
                                   ),
                                   const SizedBox(width: 14),
@@ -194,7 +194,7 @@ class AdminAnalyticsScreen extends StatelessWidget {
                               ),
                               const SizedBox(width: 12),
                               Text(
-                                '\$${order.total.toStringAsFixed(2)}',
+                                formatCurrency(order.total),
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleSmall

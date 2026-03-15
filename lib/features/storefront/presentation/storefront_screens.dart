@@ -8,12 +8,17 @@ import 'package:provider/provider.dart';
 import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
+import '../../../app/currency.dart';
 import '../../cart/presentation/cart_provider.dart';
 import '../../catalog/data/product_repository.dart';
 import '../../catalog/domain/product.dart';
 import '../../auth/application/auth_provider.dart';
 import '../../image_generation/data/generated_image_repository.dart';
 import '../../image_generation/data/generated_image_storage.dart';
+import '../../image_generation/domain/generated_image.dart';
+import '../data/ar_background_image_picker_stub.dart'
+    if (dart.library.html) '../data/ar_background_image_picker_web.dart'
+    as ar_bg_picker;
 import '../../image_generation/data/nvidia_nim_image_repository.dart';
 import '../../orders/data/order_repository.dart';
 
@@ -226,7 +231,7 @@ class ProductCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          _formatCurrency(product.price),
+                          formatCurrency(product.price),
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: Theme.of(context).colorScheme.secondary,
@@ -505,7 +510,7 @@ class ProductDetailScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          _formatCurrency(product.price),
+                          formatCurrency(product.price),
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: Theme.of(context).colorScheme.secondary,
@@ -609,17 +614,39 @@ class ProductDetailScreen extends StatelessWidget {
   }
 }
 
-class ARViewScreen extends StatelessWidget {
+/// Preset background options for the AR view (last is custom image).
+const List<({String label, Color color})> _arBackgroundOptions = [
+  (label: 'Warm', color: AppTheme.parchmentHighlight),
+  (label: 'White', color: Colors.white),
+  (label: 'Light gray', color: Color(0xFFE8E8E8)),
+  (label: 'Soft cream', color: Color(0xFFF5F0E8)),
+  (label: 'Cool gray', color: Color(0xFFE0E4E8)),
+  (label: 'Dark', color: AppTheme.richCharcoal),
+  (label: 'Image', color: Color(0xFF9E9E9E)),
+];
+
+const int _arImageBackgroundIndex = 6;
+
+class ARViewScreen extends StatefulWidget {
   const ARViewScreen({super.key, required this.productId});
 
   final String productId;
+
+  @override
+  State<ARViewScreen> createState() => _ARViewScreenState();
+}
+
+class _ARViewScreenState extends State<ARViewScreen> {
+  int _selectedBackgroundIndex = 0;
+  /// When using Image background, URL for skybox (upload or from generated images).
+  String? _arBackgroundImageUrl;
 
   @override
   Widget build(BuildContext context) {
     final repository = context.read<ProductRepository>();
 
     return FutureBuilder<Product?>(
-      future: repository.getProductById(productId),
+      future: repository.getProductById(widget.productId),
       builder: (context, snapshot) {
         final product = snapshot.data;
 
@@ -632,6 +659,55 @@ class ARViewScreen extends StatelessWidget {
           body: _buildArBody(context, snapshot, product),
         );
       },
+    );
+  }
+
+  Future<void> _pickAndUploadArBackground() async {
+    final auth = context.read<AuthProvider>();
+    if (!auth.isAuthenticated || auth.currentUser == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in to upload an image as background')),
+      );
+      return;
+    }
+    final picked = await ar_bg_picker.pickArBackgroundImage();
+    if (picked == null || !mounted) return;
+    try {
+      final url = await uploadArBackgroundImage(
+        auth.currentUser!.id,
+        picked.bytes,
+      );
+      if (!mounted) return;
+      setState(() => _arBackgroundImageUrl = url);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: $e')),
+      );
+    }
+  }
+
+  void _showGeneratedImagesSheet() {
+    final auth = context.read<AuthProvider>();
+    if (!auth.isAuthenticated || auth.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sign in to choose from your generated images'),
+        ),
+      );
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _ArGeneratedImagesSheet(
+        userId: auth.currentUser!.id,
+        onSelect: (url) {
+          setState(() => _arBackgroundImageUrl = url);
+          Navigator.of(ctx).pop();
+        },
+      ),
     );
   }
 
@@ -677,10 +753,19 @@ class ARViewScreen extends StatelessWidget {
       );
     }
 
+    final selectedBg = _arBackgroundOptions[_selectedBackgroundIndex];
+    final useImageBackground =
+        _selectedBackgroundIndex == _arImageBackgroundIndex &&
+            _arBackgroundImageUrl != null && _arBackgroundImageUrl!.isNotEmpty;
+
     return Stack(
       children: [
         ModelViewer(
-          backgroundColor: AppTheme.parchmentHighlight,
+          backgroundColor: selectedBg.color,
+          skyboxImage: useImageBackground ? _arBackgroundImageUrl : null,
+          fieldOfView: useImageBackground ? '90deg' : null,
+          maxFieldOfView: useImageBackground ? '120deg' : null,
+          minFieldOfView: useImageBackground ? '25deg' : null,
           src: modelSrc,
           alt: 'A 3D model of ${currentProduct.name}',
           ar: true,
@@ -697,16 +782,113 @@ class ARViewScreen extends StatelessWidget {
             padding: EdgeInsets.zero,
             child: AppPanel(
               padding: const EdgeInsets.all(18),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.wb_incandescent_outlined),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Move around the room, then use your device AR support to place the piece at full scale.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
+                  Row(
+                    children: [
+                      const Icon(Icons.wb_incandescent_outlined),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Move around the room, then use your device AR support to place the piece at full scale.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Text(
+                        'Background: ',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme.onSurface
+                                  .withValues(alpha: 0.8),
+                            ),
+                      ),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: List.generate(
+                            _arBackgroundOptions.length,
+                            (index) {
+                              final option = _arBackgroundOptions[index];
+                              final isSelected = index == _selectedBackgroundIndex;
+                              final isImageOption = index == _arImageBackgroundIndex;
+                              return Tooltip(
+                                message: option.label,
+                                child: GestureDetector(
+                                  onTap: () => setState(
+                                    () => _selectedBackgroundIndex = index,
+                                  ),
+                                  child: Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: option.color,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? Theme.of(context)
+                                                .colorScheme.primary
+                                            : option.color == AppTheme.richCharcoal
+                                                ? Colors.white24
+                                                : Colors.black12,
+                                        width: isSelected ? 2.5 : 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.15),
+                                          blurRadius: 2,
+                                          offset: const Offset(0, 1),
+                                        ),
+                                      ],
+                                    ),
+                                    child: isImageOption
+                                        ? Icon(
+                                            Icons.image_outlined,
+                                            size: 16,
+                                            color: index == _arImageBackgroundIndex
+                                                ? Colors.white
+                                                : Colors.black87,
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_selectedBackgroundIndex == _arImageBackgroundIndex) ...[
+                    const SizedBox(height: 12),
+                    if (useImageBackground)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Tip: The view is widened so more of the background shows. Pinch or scroll to zoom in/out on the object.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme.onSurface
+                                    .withValues(alpha: 0.7),
+                                fontStyle: FontStyle.italic,
+                              ),
+                        ),
+                      ),
+                    _ArImageBackgroundOptions(
+                      currentImageUrl: _arBackgroundImageUrl,
+                      isLoggedIn: context.read<AuthProvider>().isAuthenticated,
+                      onUploadNew: _pickAndUploadArBackground,
+                      onChooseFromSaved: _showGeneratedImagesSheet,
+                      onClear: () => setState(() => _arBackgroundImageUrl = null),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -743,7 +925,7 @@ class ARViewScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _formatCurrency(currentProduct.price),
+                          formatCurrency(currentProduct.price),
                           style: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(
                                 color: Theme.of(context).colorScheme.secondary,
@@ -850,7 +1032,7 @@ class CartScreen extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        _formatCurrency(cart.totalAmount),
+                        formatCurrency(cart.totalAmount),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: Theme.of(context).colorScheme.secondary,
                         ),
@@ -954,7 +1136,7 @@ class CheckoutScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        _formatCurrency(cart.totalAmount),
+                        formatCurrency(cart.totalAmount),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: Theme.of(context).colorScheme.secondary,
                         ),
@@ -1124,7 +1306,7 @@ class _CatalogHero extends StatelessWidget {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            _formatCurrency(product!.price),
+                                            formatCurrency(product!.price),
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodyLarge
@@ -1249,7 +1431,7 @@ class _CartItemPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _formatCurrency(item.product.price),
+                  formatCurrency(item.product.price),
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Theme.of(context).colorScheme.secondary,
                     fontWeight: FontWeight.w700,
@@ -1311,7 +1493,7 @@ class _CheckoutLineItem extends StatelessWidget {
           ),
         ),
         Text(
-          _formatCurrency(lineTotal),
+          formatCurrency(lineTotal),
           style: Theme.of(context).textTheme.titleMedium,
         ),
       ],
@@ -1344,18 +1526,155 @@ class _QuantityButton extends StatelessWidget {
   }
 }
 
+class _ArImageBackgroundOptions extends StatelessWidget {
+  const _ArImageBackgroundOptions({
+    required this.currentImageUrl,
+    required this.isLoggedIn,
+    required this.onUploadNew,
+    required this.onChooseFromSaved,
+    required this.onClear,
+  });
+
+  final String? currentImageUrl;
+  final bool isLoggedIn;
+  final VoidCallback onUploadNew;
+  final VoidCallback onChooseFromSaved;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isLoggedIn) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          'Sign in to upload an image or choose from your generated images.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+        ),
+      );
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilledButton.tonalIcon(
+          onPressed: onUploadNew,
+          icon: const Icon(Icons.upload_file, size: 18),
+          label: const Text('Upload new image'),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: onChooseFromSaved,
+          icon: const Icon(Icons.photo_library_outlined, size: 18),
+          label: const Text('From my images'),
+        ),
+        if (currentImageUrl != null && currentImageUrl!.isNotEmpty)
+          TextButton.icon(
+            onPressed: onClear,
+            icon: const Icon(Icons.clear, size: 18),
+            label: const Text('Clear'),
+          ),
+      ],
+    );
+  }
+}
+
+class _ArGeneratedImagesSheet extends StatelessWidget {
+  const _ArGeneratedImagesSheet({
+    required this.userId,
+    required this.onSelect,
+  });
+
+  final String userId;
+  final void Function(String url) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.read<GeneratedImageRepository>();
+    return FutureBuilder<List<GeneratedImage>>(
+      future: repo.getByUserId(userId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 200,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final list = snapshot.data ?? [];
+        if (list.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'No generated images yet',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Generate images from the home page, then they will appear here.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.25,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (_, scrollController) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                child: Text(
+                  'Choose from your generated images',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              Expanded(
+                child: GridView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: list.length,
+                  itemBuilder: (context, index) {
+                    final img = list[index];
+                    final url = getGeneratedImageUrl(img.imagePath);
+                    return GestureDetector(
+                      onTap: () => onSelect(url),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          url,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 String _categorySummary(Product product) {
   if (product.categories.isEmpty) {
     return 'Curated piece';
   }
 
   return product.categories.take(2).join(' · ');
-}
-
-String _formatCurrency(double amount) {
-  if (amount == amount.roundToDouble()) {
-    return '\$${amount.toStringAsFixed(0)}';
-  }
-
-  return '\$${amount.toStringAsFixed(2)}';
 }

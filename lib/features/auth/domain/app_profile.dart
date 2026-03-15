@@ -1,6 +1,7 @@
 enum AppProfileRole {
   customer('customer'),
-  admin('admin');
+  admin('admin'),
+  carpenter('carpenter');
 
   const AppProfileRole(this.value);
 
@@ -32,6 +33,7 @@ class AppProfile {
   final DateTime updatedAt;
 
   bool get isAdmin => role == AppProfileRole.admin;
+  bool get isCarpenter => role == AppProfileRole.carpenter;
 
   factory AppProfile.fromJson(Map<String, dynamic> json) {
     return AppProfile(

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/app_surfaces.dart';
+import '../../../app/currency.dart';
 import '../../catalog/data/product_repository.dart';
 import '../../catalog/domain/product.dart';
 import '../data/product_model_picker_stub.dart'
@@ -89,7 +90,7 @@ class AdminProductsScreen extends StatelessWidget {
                           ),
                           title: Text(product.name),
                           subtitle: Text(
-                            '${product.isActive ? 'Active' : 'Inactive'} · \$${product.price.toStringAsFixed(2)}',
+                            '${product.isActive ? 'Active' : 'Inactive'} · ${formatCurrency(product.price)}',
                           ),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => context.push(

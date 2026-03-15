@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
+import '../../../app/currency.dart';
 import '../data/order_repository.dart';
 import '../domain/order.dart';
 
@@ -139,7 +140,7 @@ class PurchaseHistoryScreen extends StatelessWidget {
                                     ),
                                   ),
                                   Text(
-                                    _formatCurrency(item.lineTotal),
+                                    formatCurrency(item.lineTotal),
                                     style: Theme.of(
                                       context,
                                     ).textTheme.titleMedium,
@@ -153,7 +154,7 @@ class PurchaseHistoryScreen extends StatelessWidget {
                             Align(
                               alignment: Alignment.centerRight,
                               child: Text(
-                                'Total: ${_formatCurrency(order.total)}',
+                                'Total: ${formatCurrency(order.total)}',
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(
                                       color: Theme.of(
@@ -176,14 +177,6 @@ class PurchaseHistoryScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatCurrency(double amount) {
-  if (amount == amount.roundToDouble()) {
-    return '\$${amount.toStringAsFixed(0)}';
-  }
-
-  return '\$${amount.toStringAsFixed(2)}';
 }
 
 String _formatDate(DateTime date) {
