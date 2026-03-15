@@ -1,26 +1,27 @@
-import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
-/// Saves generated image bytes to app local storage and returns the relative path
-/// to store in DB (e.g. "generated_images/<uuid>.png").
-Future<String> saveGeneratedImageToLocal(List<int> imageBytes) async {
-  final dir = await getApplicationDocumentsDirectory();
-  const subDir = 'generated_images';
-  final targetDir = Directory('${dir.path}/$subDir');
-  if (!await targetDir.exists()) {
-    await targetDir.create(recursive: true);
-  }
+const _bucket = 'generated-images';
+
+/// Uploads generated image bytes to Supabase Storage and returns the storage
+/// path to store in DB (e.g. "userId/uuid.png"). Works on web and all platforms.
+Future<String> saveGeneratedImageToStorage(
+  String userId,
+  List<int> imageBytes,
+) async {
   const uuid = Uuid();
-  final name = '${uuid.v4()}.png';
-  final file = File('${targetDir.path}/$name');
-  await file.writeAsBytes(imageBytes);
-  return '$subDir/$name';
+  final path = '$userId/${uuid.v4()}.png';
+  await Supabase.instance.client.storage.from(_bucket).uploadBinary(
+        path,
+        Uint8List.fromList(imageBytes),
+        fileOptions: const FileOptions(upsert: true),
+      );
+  return path;
 }
 
-/// Resolves the full file path for a stored relative [imagePath].
-Future<String> resolveGeneratedImagePath(String imagePath) async {
-  final dir = await getApplicationDocumentsDirectory();
-  return '${dir.path}/$imagePath';
+/// Returns the public URL for a stored image path (from DB).
+String getGeneratedImageUrl(String imagePath) {
+  return Supabase.instance.client.storage.from(_bucket).getPublicUrl(imagePath);
 }

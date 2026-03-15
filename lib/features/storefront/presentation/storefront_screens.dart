@@ -30,6 +30,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final repository = context.read<ProductRepository>();
+    final generatedImageRepository =
+        context.read<GeneratedImageRepository>();
 
     return Scaffold(
       appBar: AppBar(
@@ -120,7 +122,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     children: [
                       _CatalogHero(product: heroProduct),
                       const SizedBox(height: 28),
-                      const _GenerateImageSection(),
+                      _GenerateImageSection(
+                        generatedImageRepository: generatedImageRepository,
+                      ),
                       const SizedBox(height: 28),
                       AppSectionHeader(
                         eyebrow: 'Curated collection',
@@ -283,7 +287,11 @@ class ProductCard extends StatelessWidget {
 }
 
 class _GenerateImageSection extends StatefulWidget {
-  const _GenerateImageSection();
+  const _GenerateImageSection({
+    required this.generatedImageRepository,
+  });
+
+  final GeneratedImageRepository generatedImageRepository;
 
   @override
   State<_GenerateImageSection> createState() => _GenerateImageSectionState();
@@ -338,8 +346,11 @@ class _GenerateImageSectionState extends State<_GenerateImageSection> {
 
     setState(() => _isSaving = true);
     try {
-      final imagePath = await saveGeneratedImageToLocal(_imageBytes!);
-      await context.read<GeneratedImageRepository>().insert(
+      final imagePath = await saveGeneratedImageToStorage(
+        userId,
+        _imageBytes!,
+      );
+      await widget.generatedImageRepository.insert(
             userId: userId,
             prompt: prompt,
             imagePath: imagePath,

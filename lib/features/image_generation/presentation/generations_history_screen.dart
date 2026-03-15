@@ -1,12 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
-import '../data/generated_image_storage.dart';
 import '../data/generated_image_repository.dart';
+import '../data/generated_image_storage.dart';
 import '../domain/generated_image.dart';
 import '../../auth/application/auth_provider.dart';
 
@@ -108,40 +106,40 @@ class _HistoryCard extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 16),
-          FutureBuilder<String>(
-            future: resolveGeneratedImagePath(item.imagePath),
-            builder: (context, pathSnapshot) {
-              if (!pathSnapshot.hasData) {
-                return const SizedBox(
-                  height: 200,
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              final file = File(pathSnapshot.data!);
-              if (!file.existsSync()) {
-                return Container(
-                  height: 200,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppTheme.mutedClay.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Image file not found',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                );
-              }
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  file,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              getGeneratedImageUrl(item.imagePath),
+              fit: BoxFit.contain,
+              width: double.infinity,
+              height: 240,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return SizedBox(
                   height: 240,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 200,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppTheme.mutedClay.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              );
-            },
+                child: Text(
+                  'Image unavailable',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ),
           ),
         ],
       ),
