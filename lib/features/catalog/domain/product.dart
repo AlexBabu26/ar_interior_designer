@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../config/app_config.dart';
 import 'product_model_asset.dart';
 
 class Product {
@@ -36,11 +37,22 @@ class Product {
     );
   }
 
-  /// Full URL for the 3D model. Resolves relative paths (e.g. /product_assets/models/...) to the current origin on web so local files load in AR view.
-  String get modelUrlResolved => _resolveUrl(modelUrl);
+  /// Full URL for the 3D model. Resolves relative paths (e.g. /product_assets/models/...) to the app origin or to [productModelsBaseUrl] when set (e.g. Dart Frog in dev).
+  String get modelUrlResolved => _resolveModelUrl(modelUrl);
 
   /// Full URL for images. Resolves relative paths for local files under web/product_assets/.
   String get imageUrlResolved => _resolveUrl(imageUrl);
+
+  static String _resolveModelUrl(String url) {
+    if (url.isEmpty) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (kIsWeb && Uri.base.origin.isNotEmpty) {
+      final path = url.startsWith('/') ? url : '/$url';
+      final base = productModelsBaseUrl?.replaceAll(RegExp(r'/$'), '') ?? Uri.base.origin.replaceAll(RegExp(r'/$'), '');
+      return base + path;
+    }
+    return url;
+  }
 
   static String _resolveUrl(String url) {
     if (url.isEmpty) return url;
@@ -63,6 +75,10 @@ class Product {
       orElse: () => rawModels.isEmpty ? null : rawModels.first,
     );
 
+    final fromPrimary = primaryModel?.modelUrl ?? '';
+    final fromProduct = json['model_url'] as String? ?? '';
+    final modelUrl = fromPrimary.isNotEmpty ? fromPrimary : fromProduct;
+
     return Product(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -72,7 +88,7 @@ class Product {
       categories: (json['categories'] as List<dynamic>? ?? const <dynamic>[])
           .map((value) => value.toString())
           .toList(),
-      modelUrl: primaryModel?.modelUrl ?? '',
+      modelUrl: modelUrl,
       isActive: json['is_active'] as bool? ?? true,
       models: rawModels,
     );

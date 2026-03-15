@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
-import '../../auth/presentation/auth_screens.dart';
 import '../../cart/presentation/cart_provider.dart';
 import '../../catalog/data/product_repository.dart';
 import '../../catalog/domain/product.dart';
@@ -663,12 +662,26 @@ class ARViewScreen extends StatelessWidget {
     }
 
     final currentProduct = product!;
+    final modelSrc = currentProduct.modelUrlResolved;
+
+    if (modelSrc.isEmpty) {
+      return Center(
+        child: AppPageWidth(
+          child: AppMessagePanel(
+            title: 'No 3D model',
+            message:
+                'This product does not have a 3D model yet. Add one in Admin → Products to view it in AR.',
+            icon: Icons.view_in_ar_outlined,
+          ),
+        ),
+      );
+    }
 
     return Stack(
       children: [
         ModelViewer(
           backgroundColor: AppTheme.parchmentHighlight,
-          src: currentProduct.modelUrlResolved,
+          src: modelSrc,
           alt: 'A 3D model of ${currentProduct.name}',
           ar: true,
           arModes: const ['scene-viewer', 'webxr', 'quick-look'],
