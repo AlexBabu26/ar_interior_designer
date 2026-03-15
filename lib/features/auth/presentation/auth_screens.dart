@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
 import '../application/auth_provider.dart';
@@ -479,55 +480,62 @@ void showAccountModal(BuildContext context) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    useSafeArea: true,
+    useSafeArea: false,
     backgroundColor: Colors.transparent,
     builder: (modalContext) {
       final mediaQuery = MediaQuery.of(modalContext);
-      return Align(
-        alignment: Alignment.bottomCenter,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            width: mediaQuery.size.width,
-            constraints: BoxConstraints(
-              maxHeight: mediaQuery.size.height * 0.9,
-            ),
-            decoration: BoxDecoration(
-              color: Theme.of(modalContext).scaffoldBackgroundColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: DraggableScrollableSheet(
-              initialChildSize: 0.7,
-              minChildSize: 0.4,
-              maxChildSize: 1,
-              builder: (_, scrollController) => Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Theme.of(modalContext).dividerColor,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  Flexible(
-                    child: ListView(
-                      controller: scrollController,
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                      children: [
-                        AccountContent(
-                          onNavigateAway: () => Navigator.of(modalContext).pop(),
-                          parentContext: context,
+      final bottomPadding = mediaQuery.padding.bottom;
+      return SizedBox.expand(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: mediaQuery.size.width,
+              constraints: BoxConstraints(
+                maxHeight: mediaQuery.size.height * 0.9 - bottomPadding,
+              ),
+              margin: EdgeInsets.zero,
+              decoration: BoxDecoration(
+                color: Theme.of(modalContext).scaffoldBackgroundColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: DraggableScrollableSheet(
+                  initialChildSize: 0.7,
+                  minChildSize: 0.4,
+                  maxChildSize: 1,
+                  builder: (_, scrollController) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Theme.of(modalContext).dividerColor,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                      Flexible(
+                        child: ListView(
+                          controller: scrollController,
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          children: [
+                            AccountContent(
+                              onNavigateAway: () => Navigator.of(modalContext).pop(),
+                              parentContext: context,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -700,7 +708,11 @@ class AdminDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin Dashboard')),
+      appBar: AppNavBar(
+        title: 'Admin Dashboard',
+        showBackButton: true,
+        onBack: () => context.go('/'),
+      ),
       body: ListView(
         children: [
           AppPageWidth(
@@ -727,14 +739,16 @@ class AdminDashboardScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                const AppPanel(
+                AppPanel(
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.receipt_long_outlined),
-                    title: Text('Transactions and analytics'),
-                    subtitle: Text(
-                      'Order reporting and analytics are still planned for a later phase.',
+                    leading: const Icon(Icons.bar_chart_rounded),
+                    title: const Text('Analytics dashboard'),
+                    subtitle: const Text(
+                      'View order count, revenue, product count, and recent orders.',
                     ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/admin/analytics'),
                   ),
                 ),
               ],

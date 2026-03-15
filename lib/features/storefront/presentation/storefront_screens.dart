@@ -188,7 +188,7 @@ class ProductCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppTheme.mutedClay.withValues(alpha: 0.2),
                     image: DecorationImage(
-                      image: NetworkImage(product.imageUrl),
+                      image: NetworkImage(product.imageUrlResolved),
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -478,7 +478,7 @@ class ProductDetailScreen extends StatelessWidget {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             image: DecorationImage(
-                              image: NetworkImage(product.imageUrl),
+                              image: NetworkImage(product.imageUrlResolved),
                               fit: BoxFit.cover,
                             ),
                           ),
@@ -668,7 +668,7 @@ class ARViewScreen extends StatelessWidget {
       children: [
         ModelViewer(
           backgroundColor: AppTheme.parchmentHighlight,
-          src: currentProduct.modelUrl,
+          src: currentProduct.modelUrlResolved,
           alt: 'A 3D model of ${currentProduct.name}',
           ar: true,
           arModes: const ['scene-viewer', 'webxr', 'quick-look'],
@@ -712,7 +712,7 @@ class ARViewScreen extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: Image.network(
-                      currentProduct.imageUrl,
+                      currentProduct.imageUrlResolved,
                       width: 72,
                       height: 72,
                       fit: BoxFit.cover,
@@ -1071,7 +1071,7 @@ class _CatalogHero extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Image.network(product!.imageUrl, fit: BoxFit.cover),
+                        Image.network(product!.imageUrlResolved, fit: BoxFit.cover),
                         DecoratedBox(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -1211,7 +1211,7 @@ class _CartItemPanel extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(18),
             child: Image.network(
-              item.product.imageUrl,
+              item.product.imageUrlResolved,
               width: 92,
               height: 92,
               fit: BoxFit.cover,

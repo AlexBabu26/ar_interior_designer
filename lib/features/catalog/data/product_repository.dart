@@ -11,6 +11,8 @@ abstract class ProductRepository {
 
   Future<String> saveProduct(Product product);
 
+  Future<void> deleteProduct(String id);
+
   Future<void> savePrimaryModel({
     required String productId,
     required String modelUrl,
@@ -78,6 +80,11 @@ class SupabaseProductRepository implements ProductRepository {
         .single();
 
     return response['id'] as String;
+  }
+
+  @override
+  Future<void> deleteProduct(String id) async {
+    await _client.from('products').delete().eq('id', id);
   }
 
   @override

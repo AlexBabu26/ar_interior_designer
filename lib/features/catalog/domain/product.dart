@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'product_model_asset.dart';
 
 class Product {
@@ -32,6 +34,22 @@ class Product {
       (model) => model.isPrimary,
       orElse: () => models.first,
     );
+  }
+
+  /// Full URL for the 3D model. Resolves relative paths (e.g. /product_assets/models/...) to the current origin on web so local files load in AR view.
+  String get modelUrlResolved => _resolveUrl(modelUrl);
+
+  /// Full URL for images. Resolves relative paths for local files under web/product_assets/.
+  String get imageUrlResolved => _resolveUrl(imageUrl);
+
+  static String _resolveUrl(String url) {
+    if (url.isEmpty) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (kIsWeb && Uri.base.origin.isNotEmpty) {
+      final path = url.startsWith('/') ? url : '/$url';
+      return Uri.base.origin.replaceAll(RegExp(r'/$'), '') + path;
+    }
+    return url;
   }
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -69,6 +87,7 @@ class Product {
       'image_url': imageUrl,
       'categories': categories,
       'is_active': isActive,
+      'model_url': modelUrl,
     };
   }
 

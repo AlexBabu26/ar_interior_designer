@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import '../features/admin/presentation/admin_analytics_screen.dart';
 import '../features/admin/presentation/admin_product_screens.dart';
 import '../features/auth/application/auth_provider.dart';
 import '../features/auth/presentation/auth_screens.dart';
@@ -167,6 +168,10 @@ GoRouter createAppRouter(AuthProvider authProvider) {
         path: '/admin',
         builder: (context, state) => const AdminDashboardScreen(),
         routes: [
+          GoRoute(
+            path: 'analytics',
+            builder: (context, state) => const AdminAnalyticsScreen(),
+          ),
           GoRoute(
             path: 'products',
             builder: (context, state) => const AdminProductsScreen(),

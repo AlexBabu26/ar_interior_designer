@@ -5,6 +5,9 @@ import 'package:provider/provider.dart';
 import '../../../app/app_surfaces.dart';
 import '../../catalog/data/product_repository.dart';
 import '../../catalog/domain/product.dart';
+import '../data/product_model_picker_stub.dart'
+    if (dart.library.html) '../data/product_model_picker_web.dart' as model_picker;
+import '../data/product_model_upload.dart';
 
 class AdminProductsScreen extends StatelessWidget {
   const AdminProductsScreen({super.key});
@@ -126,6 +129,7 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
   final _modelUrlController = TextEditingController();
   bool _isActive = true;
   bool _isSaving = false;
+  bool _isUploadingModel = false;
   Product? _loadedProduct;
   Future<Product?>? _loadFuture;
 
@@ -249,15 +253,41 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
                               : null,
                         ),
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _modelUrlController,
-                          decoration: const InputDecoration(
-                            labelText: 'Primary 3D Model URL',
-                          ),
-                          validator: (value) =>
-                              value == null || value.trim().isEmpty
-                              ? 'Enter a model URL'
-                              : null,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _modelUrlController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Primary 3D model path',
+                                  hintText: 'Upload a .glb/.gltf file or enter path',
+                                  helperText: 'Stored under web/product_assets/models',
+                                ),
+                                validator: (value) =>
+                                    value == null || value.trim().isEmpty
+                                    ? 'Upload a 3D model file or enter path'
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                FilledButton.icon(
+                                  onPressed: _isUploadingModel ? null : _pickAndUploadModel,
+                                  icon: _isUploadingModel
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.upload_file),
+                                  label: Text(_isUploadingModel ? 'Uploading...' : 'Upload file'),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -286,6 +316,23 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
                             ),
                           ),
                         ),
+                        if (widget.productId != null) ...[
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _isSaving ? null : _confirmDelete,
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Delete product'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Theme.of(context).colorScheme.error,
+                                side: BorderSide(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -296,6 +343,78 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _pickAndUploadModel() async {
+    final picked = await model_picker.pickProductModelFile();
+    if (picked == null || picked.bytes.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No file selected or could not read file.')),
+      );
+      return;
+    }
+    setState(() => _isUploadingModel = true);
+    try {
+      final path = await uploadProductModel(
+        fileBytes: picked.bytes,
+        fileName: picked.name,
+      );
+      if (!mounted) return;
+      _modelUrlController.text = path;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Model uploaded: $path')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingModel = false);
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete product?'),
+        content: const Text(
+          'This will permanently remove the product and its 3D models. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _isSaving = true);
+    try {
+      await context.read<ProductRepository>().deleteProduct(widget.productId!);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Product deleted.')),
+      );
+      context.go('/admin/products');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to delete product: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   Future<void> _save() async {
