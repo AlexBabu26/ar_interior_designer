@@ -24,7 +24,7 @@ class AuthMenuButton extends StatelessWidget {
             context.push('/register');
             break;
           case _AuthMenuAction.account:
-            context.push('/account');
+            showAccountModal(context);
             break;
           case _AuthMenuAction.generations:
             context.push('/account/generations');
@@ -474,125 +474,222 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 }
 
+/// Call this to open the account overview as a modal (e.g. from the app bar menu).
+void showAccountModal(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (modalContext) {
+      final mediaQuery = MediaQuery.of(modalContext);
+      return Align(
+        alignment: Alignment.bottomCenter,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: mediaQuery.size.width,
+            constraints: BoxConstraints(
+              maxHeight: mediaQuery.size.height * 0.9,
+            ),
+            decoration: BoxDecoration(
+              color: Theme.of(modalContext).scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.4,
+              maxChildSize: 1,
+              builder: (_, scrollController) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Theme.of(modalContext).dividerColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    child: ListView(
+                      controller: scrollController,
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      children: [
+                        AccountContent(
+                          onNavigateAway: () => Navigator.of(modalContext).pop(),
+                          parentContext: context,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Account'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.pop(),
+        ),
+      ),
+      body: ListView(
+        children: [
+          AppPageWidth(
+            child: AccountContent(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Reusable account overview content (profile, links, logout).
+/// Used in full AccountScreen and in the account modal.
+class AccountContent extends StatelessWidget {
+  const AccountContent({
+    super.key,
+    this.onNavigateAway,
+    this.parentContext,
+  });
+
+  /// When set (e.g. in modal), call before navigating so the sheet closes first.
+  final VoidCallback? onNavigateAway;
+  final BuildContext? parentContext;
+
+  void _navigate(BuildContext context, String path) {
+    if (parentContext != null && parentContext!.mounted) {
+      onNavigateAway?.call();
+      GoRouter.of(parentContext!).push(path);
+    } else {
+      context.push(path);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final profile = auth.profile;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Account')),
-      body: ListView(
-        children: [
-          AppPageWidth(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppSectionHeader(
-                  eyebrow: 'Account',
-                  title: 'Account overview',
-                  subtitle:
-                      'Profile details, order history, and account actions are gathered here in one calm workspace.',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSectionHeader(
+          eyebrow: 'Account',
+          title: 'Account overview',
+          subtitle:
+              'Profile details, order history, and account actions are gathered here in one calm workspace.',
+        ),
+        const SizedBox(height: 24),
+        AppPanel(
+          child: Row(
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppTheme.parchment,
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                const SizedBox(height: 24),
-                AppPanel(
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          color: AppTheme.parchment,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: const Icon(Icons.person_outline, size: 32),
-                      ),
-                      const SizedBox(width: 18),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              profile?.displayName ?? 'Guest account',
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              auth.currentUser?.email ?? 'Unknown',
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                child: const Icon(Icons.person_outline, size: 32),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile?.displayName ?? 'Guest account',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      auth.currentUser?.email ?? 'Unknown',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 18),
-                _AccountInfoTile(
-                  icon: Icons.mail_outline,
-                  label: 'Email',
-                  value: auth.currentUser?.email ?? 'Unknown',
-                ),
-                const SizedBox(height: 14),
-                _AccountInfoTile(
-                  icon: Icons.badge_outlined,
-                  label: 'Display name',
-                  value: profile?.displayName ?? 'Not set',
-                ),
-                const SizedBox(height: 14),
-                _AccountInfoTile(
-                  icon: Icons.verified_user_outlined,
-                  label: 'Role',
-                  value: profile?.role.value ?? 'customer',
-                ),
-                const SizedBox(height: 20),
-                FilledButton.icon(
-                  onPressed: () => context.push('/account/purchases'),
-                  icon: const Icon(Icons.receipt_long_outlined),
-                  label: const Text('View purchase history'),
-                ),
-                const SizedBox(height: 14),
-                OutlinedButton.icon(
-                  onPressed: () => context.push('/account/generations'),
-                  icon: const Icon(Icons.auto_awesome),
-                  label: const Text('Image history'),
-                ),
-                if (auth.isAdmin) ...[
-                  const SizedBox(height: 14),
-                  OutlinedButton.icon(
-                    onPressed: () => context.push('/admin'),
-                    icon: const Icon(Icons.admin_panel_settings_outlined),
-                    label: const Text('Open admin dashboard'),
-                  ),
-                ],
-                const SizedBox(height: 14),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final didSignOut = await context
-                        .read<AuthProvider>()
-                        .signOut();
-                    if (context.mounted) {
-                      if (didSignOut) {
-                        context.go('/');
-                      } else {
-                        _showSnackBar(
-                          context,
-                          context.read<AuthProvider>().errorMessage ??
-                              'Unable to sign out right now.',
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Logout'),
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        _AccountInfoTile(
+          icon: Icons.mail_outline,
+          label: 'Email',
+          value: auth.currentUser?.email ?? 'Unknown',
+        ),
+        const SizedBox(height: 14),
+        _AccountInfoTile(
+          icon: Icons.badge_outlined,
+          label: 'Display name',
+          value: profile?.displayName ?? 'Not set',
+        ),
+        const SizedBox(height: 14),
+        _AccountInfoTile(
+          icon: Icons.verified_user_outlined,
+          label: 'Role',
+          value: profile?.role.value ?? 'customer',
+        ),
+        const SizedBox(height: 20),
+        FilledButton.icon(
+          onPressed: () => _navigate(context, '/account/purchases'),
+          icon: const Icon(Icons.receipt_long_outlined),
+          label: const Text('View purchase history'),
+        ),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(
+          onPressed: () => _navigate(context, '/account/generations'),
+          icon: const Icon(Icons.auto_awesome),
+          label: const Text('Image history'),
+        ),
+        if (auth.isAdmin) ...[
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: () => _navigate(context, '/admin'),
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            label: const Text('Open admin dashboard'),
           ),
         ],
-      ),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final didSignOut = await context.read<AuthProvider>().signOut();
+            if (context.mounted) {
+              if (didSignOut) {
+                onNavigateAway?.call();
+                final ctx = parentContext ?? context;
+                if (ctx.mounted) GoRouter.of(ctx).go('/');
+              } else {
+                _showSnackBar(
+                  context,
+                  context.read<AuthProvider>().errorMessage ??
+                      'Unable to sign out right now.',
+                );
+              }
+            }
+          },
+          icon: const Icon(Icons.logout),
+          label: const Text('Logout'),
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
 import '../data/order_repository.dart';
@@ -14,7 +16,11 @@ class PurchaseHistoryScreen extends StatelessWidget {
     final repository = context.read<OrderRepository>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Purchase History')),
+      appBar: AppNavBar(
+        title: 'Purchase History',
+        showBackButton: true,
+        onBack: () => context.pop(),
+      ),
       body: FutureBuilder<List<Order>>(
         future: repository.getOrders(),
         builder: (context, snapshot) {

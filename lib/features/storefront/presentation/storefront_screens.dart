@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
 import '../../auth/presentation/auth_screens.dart';
@@ -34,46 +35,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
         context.read<GeneratedImageRepository>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AR Home'),
-        actions: [
-          const AuthMenuButton(),
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.shopping_bag_outlined),
-                onPressed: () => context.go('/cart'),
-              ),
-              Consumer<CartProvider>(
-                builder: (context, cart, child) {
-                  if (cart.itemCount == 0) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        '${cart.itemCount}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
+      appBar: const AppNavBar(),
       body: FutureBuilder<List<Product>>(
         future: repository.getProducts(),
         builder: (context, snapshot) {
@@ -468,7 +430,11 @@ class ProductDetailScreen extends StatelessWidget {
     final repository = context.read<ProductRepository>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Product details')),
+      appBar: AppNavBar(
+        title: 'Product details',
+        showBackButton: true,
+        onBack: () => context.pop(),
+      ),
       body: FutureBuilder<Product?>(
         future: repository.getProductById(productId),
         builder: (context, snapshot) {
@@ -659,7 +625,11 @@ class ARViewScreen extends StatelessWidget {
         final product = snapshot.data;
 
         return Scaffold(
-          appBar: AppBar(title: Text(product?.name ?? 'AR Preview')),
+          appBar: AppNavBar(
+            title: product?.name ?? 'AR Preview',
+            showBackButton: true,
+            onBack: () => context.pop(),
+          ),
           body: _buildArBody(context, snapshot, product),
         );
       },
@@ -801,7 +771,11 @@ class CartScreen extends StatelessWidget {
     final cart = context.watch<CartProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Your Shopping Bag')),
+      appBar: AppNavBar(
+        title: 'Your Shopping Bag',
+        showBackButton: true,
+        onBack: () => context.pop(),
+      ),
       body: cart.items.isEmpty
           ? Center(
               child: AppPageWidth(
@@ -895,7 +869,11 @@ class CheckoutScreen extends StatelessWidget {
 
     if (cart.items.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Checkout')),
+        appBar: AppNavBar(
+          title: 'Checkout',
+          showBackButton: true,
+          onBack: () => context.pop(),
+        ),
         body: Center(
           child: AppPageWidth(
             child: AppMessagePanel(
@@ -914,7 +892,11 @@ class CheckoutScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Checkout')),
+      appBar: AppNavBar(
+        title: 'Checkout',
+        showBackButton: true,
+        onBack: () => context.pop(),
+      ),
       body: ListView(
         children: [
           AppPageWidth(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
 import '../data/generated_image_repository.dart';
@@ -17,7 +19,11 @@ class GenerationsHistoryScreen extends StatelessWidget {
     final userId = auth.currentUser?.id;
     if (userId == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Image history')),
+        appBar: AppNavBar(
+          title: 'Image history',
+          showBackButton: true,
+          onBack: () => context.pop(),
+        ),
         body: const Center(
           child: AppMessagePanel(
             title: 'Sign in required',
@@ -31,7 +37,11 @@ class GenerationsHistoryScreen extends StatelessWidget {
     final repository = context.read<GeneratedImageRepository>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Image history')),
+      appBar: AppNavBar(
+        title: 'Image history',
+        showBackButton: true,
+        onBack: () => context.pop(),
+      ),
       body: FutureBuilder<List<GeneratedImage>>(
         future: repository.getByUserId(userId),
         builder: (context, snapshot) {
@@ -65,15 +75,22 @@ class GenerationsHistoryScreen extends StatelessWidget {
             );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              return AppPageWidth(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: _HistoryCard(item: items[index]),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount =
+                  constraints.maxWidth > 700 ? 3 : (constraints.maxWidth > 400 ? 2 : 1);
+              return GridView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 20,
+                  crossAxisSpacing: 20,
+                  childAspectRatio: 0.72,
                 ),
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  return _HistoryCard(item: items[index]);
+                },
               );
             },
           );
@@ -90,55 +107,78 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPanel(
+    final theme = Theme.of(context);
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            item.prompt,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _formatDate(item.createdAt),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.deepUmber,
-                ),
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+          Expanded(
+            flex: 4,
             child: Image.network(
-              getGeneratedImageUrl(item.imagePath),
-              fit: BoxFit.contain,
-              width: double.infinity,
-              height: 240,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return SizedBox(
-                  height: 240,
+                getGeneratedImageUrl(item.imagePath),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    color: AppTheme.mutedClay.withValues(alpha: 0.15),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: AppTheme.mutedClay.withValues(alpha: 0.2),
                   child: Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.broken_image_outlined,
+                          size: 40,
+                          color: AppTheme.deepUmber.withValues(alpha: 0.6),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Image unavailable',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) => Container(
-                height: 200,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppTheme.mutedClay.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Image unavailable',
-                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  item.prompt,
+                  style: theme.textTheme.titleSmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _formatDate(item.createdAt),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppTheme.deepUmber,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
