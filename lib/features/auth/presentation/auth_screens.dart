@@ -85,9 +85,10 @@ class AuthMenuButton extends StatelessWidget {
 enum _AuthMenuAction { login, register, account, admin, logout }
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, this.redirectTo});
+  const LoginScreen({super.key, this.redirectTo, this.message});
 
   final String? redirectTo;
+  final String? message;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -128,6 +129,30 @@ class _LoginScreenState extends State<LoginScreen> {
     _showMessage(auth.errorMessage ?? 'Unable to sign in.');
   }
 
+  Future<void> _resendVerificationEmail() async {
+    final emailError = _validateEmail(_emailController.text);
+    if (emailError != null) {
+      _showMessage(emailError);
+      return;
+    }
+
+    final auth = context.read<AuthProvider>();
+    final didResend = await auth.resendVerificationEmail(
+      email: _emailController.text,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    _showMessage(
+      didResend
+          ? auth.infoMessage ??
+                'If that account is waiting for verification, a new verification email has been sent.'
+          : auth.errorMessage ?? 'Unable to resend the verification email.',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -155,6 +180,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   value == null || value.isEmpty ? 'Enter your password' : null,
             ),
             const SizedBox(height: 24),
+            if (widget.message != null && widget.message!.isNotEmpty) ...[
+              Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    widget.message!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -180,6 +220,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ).toString(),
               ),
               child: const Text('Create an account'),
+            ),
+            TextButton(
+              onPressed: auth.isBusy ? null : _resendVerificationEmail,
+              child: const Text('Resend verification email'),
             ),
           ],
         ),

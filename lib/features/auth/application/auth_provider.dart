@@ -54,6 +54,14 @@ class AuthProvider with ChangeNotifier {
     });
   }
 
+  Future<bool> resendVerificationEmail({required String email}) async {
+    return _runAuthAction(() async {
+      await _authGateway.resendSignupVerificationEmail(email: email.trim());
+      _infoMessage =
+          'If that account is waiting for verification, a new verification email has been sent.';
+    });
+  }
+
   Future<bool> signIn({required String email, required String password}) async {
     return _runAuthAction(() async {
       await _authGateway.signInWithPassword(

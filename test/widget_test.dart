@@ -94,6 +94,9 @@ class _FakeAuthGateway implements AuthGateway {
   Future<void> sendPasswordResetEmail({required String email}) async {}
 
   @override
+  Future<void> resendSignupVerificationEmail({required String email}) async {}
+
+  @override
   Future<void> signInWithPassword({
     required String email,
     required String password,

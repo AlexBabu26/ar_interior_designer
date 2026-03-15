@@ -70,5 +70,31 @@ void main() {
 
       expect(redirect, '/auth-loading?from=%2Fadmin');
     });
+
+    test('normalizes absolute callback URLs into app-relative redirects', () {
+      final redirect = resolveAppRedirect(
+        location: '/login',
+        redirectAfterAuth:
+            'http://localhost:53503/?error=access_denied&error_code=otp_expired',
+        isInitialized: true,
+        isAuthenticated: true,
+        isAdmin: false,
+      );
+
+      expect(redirect, '/?error=access_denied&error_code=otp_expired');
+    });
+
+    test('redirects auth callback errors to login with a readable message', () {
+      final redirect = resolveAppRedirect(
+        location: '/',
+        requestedLocation:
+            '/?error=access_denied&error_code=otp_expired&error_description=Email%20link%20is%20invalid%20or%20has%20expired',
+        isInitialized: true,
+        isAuthenticated: false,
+        isAdmin: false,
+      );
+
+      expect(redirect, '/login?message=Email+link+is+invalid+or+has+expired');
+    });
   });
 }

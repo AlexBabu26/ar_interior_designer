@@ -12,9 +12,19 @@ String? resolveAppRedirect({
   required bool isAuthenticated,
   required bool isAdmin,
 }) {
-  final pendingLocation = requestedLocation ?? location;
+  final pendingLocation = _normalizeRouteTarget(requestedLocation) ?? location;
+  final requestedUri = Uri.tryParse(requestedLocation ?? pendingLocation);
+  final authErrorDescription =
+      requestedUri?.queryParameters['error_description'];
   final normalizedRedirect = _normalizeRouteTarget(redirectAfterAuth);
   final preservedDestination = normalizedRedirect ?? pendingLocation;
+
+  if (authErrorDescription != null && authErrorDescription.isNotEmpty) {
+    return Uri(
+      path: '/login',
+      queryParameters: <String, String>{'message': authErrorDescription},
+    ).toString();
+  }
 
   if (!isInitialized) {
     if (location == '/auth-loading') {
@@ -111,7 +121,10 @@ GoRouter createAppRouter(AuthProvider authProvider) {
       GoRoute(
         path: '/login',
         builder: (context, state) {
-          return LoginScreen(redirectTo: state.uri.queryParameters['from']);
+          return LoginScreen(
+            redirectTo: state.uri.queryParameters['from'],
+            message: state.uri.queryParameters['message'],
+          );
         },
       ),
       GoRoute(
@@ -145,5 +158,19 @@ String? _normalizeRouteTarget(String? value) {
     return null;
   }
 
-  return value;
+  final parsed = Uri.tryParse(value);
+  if (parsed == null) {
+    return value.startsWith('/') ? value : '/';
+  }
+
+  final path = parsed.path.isEmpty ? '/' : parsed.path;
+  final normalized = Uri(
+    path: path,
+    queryParameters: parsed.queryParameters.isEmpty
+        ? null
+        : parsed.queryParameters,
+    fragment: parsed.fragment.isEmpty ? null : parsed.fragment,
+  ).toString();
+
+  return normalized.startsWith('/') ? normalized : '/$normalized';
 }

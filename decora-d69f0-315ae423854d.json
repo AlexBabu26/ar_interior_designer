@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "decora-d69f0",
+  "private_key_id": "315ae423854deeb442aaa424118b33127d2fefb4",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDSpW9tpIALK8Yv\nPNW6BzUtbzezuwdQybyXkQ7v+VQqN10RIJZVhNSOnXOLHHWBlaK94wg8L2J3rEKq\nmki0/KTvrz+Ei9qw8tou5SK8MtmA87+tsdhMBtRKAj8izQaoOg8hZsFcUgHuQ7ec\nVHa+JlVi2riWbEpGcAUIicsCdgUKrz3G2SV8QFKH7OhVBx3NWfPV8XglyQht6oVf\nZQOmPGOKVCyH4GzbGypzAjLNKIThLk9s8x5hOFyuXPAedt0TApObBD9yWswf3IBL\nzs0aaFUqDntw/e288hO384eg7Mcxn0UXJfDPtKHeTGpso1zymq4o3RwKA8KLzqJo\nK+h2hS+lAgMBAAECggEAArVqnZOXCHZ30cEjDbQPenL/H3XOOEbRRo4H31LTcVPk\nj2IvWFYsvv9GOf4T36aGNWM+hpeZB6N3m6Don4bN+OCANGllyw7i7vzlH3Mi2fS8\nzhFYSiNv+qumixiQMYiAgDcW9FgLzH3RVhC9zLGcCr8DcbjTH1F6h9FlDlkLnbu2\n+KZR5ZgNZE6tJEr6n3t7Lq2+/gZmUpVL5p7XPfh8iTh/3ikXjenBXpzlF+3eeoeI\nM8sIxIvEg7o/dypyZU9MSJSu7+S1G3YUrA0bOD3KUp1B4N0zVAk/tWEAlCOyMSlM\nbLFsEd4ys71JmivXYtlxgA818z8y0s/YJUZPIGnimQKBgQD7dFwtxJdJxg0+rQUG\nZ0jeDGA232yp0LXwfScaSMQmm8TEyKTigMFWXdERKNCyFzAHu4EbBCzXkb7M8D6/\nwdyOKHJt4ccLC6BpAHV0ZlLy9UNaWdZneK6O1OpZ+ggwvUiJtqVpzLlFJJChQv9h\nKT31COwcwXwzTzn0Cu2zEoeVLwKBgQDWdDqwYkmD0LXaktFRze0l6/iVWichgVGK\nsOpVCrRJcrEY85O41DyNcJNeJZHNsnYTphQdOqN45Kg2vruItOFFRvlb92qiQ3vX\n5znBH890T1JohhBS6XPssqheoJF5Mn3L1rCRgBx+b52NkO13S9gdk7ZkqRzUfou4\nBXOpYQg7awKBgCQO/aD6jg9gPUn9mbjfWs2szKdRxs1bRpvj9pWIVciLkd3+P9bT\nS+ZMscxaJANF2/df5hWvtZZ8KfZNhVIORMiF+FLVi6uD0U79Z9p3SfHZRf1Q4LQZ\n1D5bPfgFKOOEYUCOVo4jc3X81lipuOF//oiC7Qj6ngrlk5PxdUC2qYa1AoGAE6c3\nMa7wOcpIwC0wTaTnlNAZSeanK2TkiidIcl62wvxlynmYEhoxKm0ktD4RLJ6sP4S6\n1yrmjE+4MrwsB408D9M/SvRTq2cv1Et2eYJmyqvyS23t1Qtb+lctIu7oJglAigu0\nxsDM27Fy6ORdPs+OkLdWwcbVw4uNVmH5hY5E6N0CgYEA2EjZxG5+RPiVrEpz8ljr\nCg67rrNE9BqDlSv5VR+acHWQ76kybScR0Yq5RTui65wHi+F5+D9r3Erf/SrKehfi\nbO3oSM7S9nuy4LYRPUP9lAzNxJoXRWJ/3ZYgdbIRSka94y1K4nw2skGNlyewm8IL\nrMFKcD6aCCXIq1SAFHpBDtw=\n-----END PRIVATE KEY-----\n",
+  "client_email": "interior@decora-d69f0.iam.gserviceaccount.com",
+  "client_id": "112251374042191195322",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/interior%40decora-d69f0.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

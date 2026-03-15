@@ -175,6 +175,26 @@ void main() {
       expect(provider.isAuthenticated, isTrue);
       expect(provider.errorMessage, contains('Unable to sign out'));
     });
+
+    test('resends verification email and stores a success message', () async {
+      final authGateway = _FakeAuthGateway();
+      final provider = AuthProvider(
+        authGateway: authGateway,
+        profileRepository: _FakeProfileRepository(),
+      );
+      await provider.start();
+
+      final didResend = await provider.resendVerificationEmail(
+        email: 'pending@example.com',
+      );
+
+      expect(didResend, isTrue);
+      expect(authGateway.lastResendVerificationEmail, 'pending@example.com');
+      expect(
+        provider.infoMessage,
+        contains('verification email has been sent'),
+      );
+    });
   });
 }
 
@@ -188,6 +208,7 @@ class _FakeAuthGateway implements AuthGateway {
   final AuthUserIdentity? initialUser;
   final bool shouldThrowOnSignIn;
   final bool shouldThrowOnSignOut;
+  String? lastResendVerificationEmail;
   final StreamController<AuthUserIdentity?> _controller =
       StreamController<AuthUserIdentity?>.broadcast();
 
@@ -201,6 +222,11 @@ class _FakeAuthGateway implements AuthGateway {
 
   @override
   Future<void> sendPasswordResetEmail({required String email}) async {}
+
+  @override
+  Future<void> resendSignupVerificationEmail({required String email}) async {
+    lastResendVerificationEmail = email;
+  }
 
   @override
   Future<void> signInWithPassword({

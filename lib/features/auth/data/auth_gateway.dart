@@ -34,6 +34,8 @@ abstract class AuthGateway {
 
   Future<void> sendPasswordResetEmail({required String email});
 
+  Future<void> resendSignupVerificationEmail({required String email});
+
   Future<void> signOut();
 }
 
@@ -57,6 +59,15 @@ class SupabaseAuthGateway implements AuthGateway {
   Future<void> sendPasswordResetEmail({required String email}) async {
     try {
       await _client.auth.resetPasswordForEmail(email);
+    } on AuthException catch (error) {
+      throw AuthGatewayException(error.message);
+    }
+  }
+
+  @override
+  Future<void> resendSignupVerificationEmail({required String email}) async {
+    try {
+      await _client.auth.resend(type: OtpType.signup, email: email);
     } on AuthException catch (error) {
       throw AuthGatewayException(error.message);
     }
