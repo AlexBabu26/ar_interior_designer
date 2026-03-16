@@ -542,7 +542,8 @@ class AccountScreen extends StatelessWidget {
         title: const Text('Account'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/'),
         ),
       ),
       body: ListView(

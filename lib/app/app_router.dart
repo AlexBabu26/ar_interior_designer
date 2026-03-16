@@ -71,7 +71,7 @@ String? resolveAppRedirect({
   }
 
   if (isAuthenticated && guestOnlyRoutes.contains(location)) {
-    return normalizedRedirect ?? '/account';
+    return normalizedRedirect ?? '/';
   }
 
   if ((location == '/admin' || location.startsWith('/admin/')) && !isAdmin) {
