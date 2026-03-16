@@ -46,10 +46,12 @@ class Product {
   static String _resolveModelUrl(String url) {
     if (url.isEmpty) return url;
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    final path = url.startsWith('/') ? url : '/$url';
+    if (productModelsBaseUrl != null) {
+      return productModelsBaseUrl!.replaceAll(RegExp(r'/$'), '') + path;
+    }
     if (kIsWeb && Uri.base.origin.isNotEmpty) {
-      final path = url.startsWith('/') ? url : '/$url';
-      final base = productModelsBaseUrl?.replaceAll(RegExp(r'/$'), '') ?? Uri.base.origin.replaceAll(RegExp(r'/$'), '');
-      return base + path;
+      return Uri.base.origin.replaceAll(RegExp(r'/$'), '') + path;
     }
     return url;
   }

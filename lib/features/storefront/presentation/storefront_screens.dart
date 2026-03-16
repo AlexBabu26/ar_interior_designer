@@ -582,6 +582,22 @@ class ProductDetailScreen extends StatelessWidget {
                             ),
                           ],
                         ),
+                        if (product.modelUrlResolved.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: () => context.go(
+                                '/ar-scene?product=${product.id}',
+                              ),
+                              icon: const Icon(Icons.space_dashboard_outlined),
+                              label: const Text('Add to AR Scene'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppTheme.burntSienna,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   );
@@ -1241,6 +1257,14 @@ class _CatalogHero extends StatelessWidget {
                         : () => context.go('/ar/${product!.id}'),
                     icon: const Icon(Icons.view_in_ar_outlined),
                     label: const Text('Preview in AR'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => context.go('/ar-scene'),
+                    icon: const Icon(Icons.space_dashboard_outlined),
+                    label: const Text('Design Your Room'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.burntSienna,
+                    ),
                   ),
                 ],
               ),

@@ -9,6 +9,8 @@ import '../features/image_generation/presentation/generations_history_screen.dar
 import '../features/modifications/presentation/modification_chat_screen.dart';
 import '../features/modifications/presentation/modification_list_screen.dart';
 import '../features/orders/presentation/purchase_history_screen.dart';
+import '../features/storefront/presentation/ar_scene_screen_stub.dart'
+    if (dart.library.io) '../features/storefront/presentation/ar_scene_screen.dart';
 import '../features/storefront/presentation/storefront_screens.dart';
 
 String? resolveAppRedirect({
@@ -115,6 +117,14 @@ GoRouter createAppRouter(AuthProvider authProvider) {
             path: 'ar/:id',
             builder: (context, state) {
               return ARViewScreen(productId: state.pathParameters['id']!);
+            },
+          ),
+          GoRoute(
+            path: 'ar-scene',
+            builder: (context, state) {
+              return ARSceneScreen(
+                initialProductId: state.uri.queryParameters['product'],
+              );
             },
           ),
           GoRoute(
