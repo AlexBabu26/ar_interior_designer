@@ -598,6 +598,17 @@ class ProductDetailScreen extends StatelessWidget {
                             ),
                           ),
                         ],
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => context.go(
+                              '/staging?product=${product.id}',
+                            ),
+                            icon: const Icon(Icons.photo_filter_outlined),
+                            label: const Text('Stage in Room'),
+                          ),
+                        ),
                       ],
                     ),
                   );

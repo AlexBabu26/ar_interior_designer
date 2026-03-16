@@ -11,6 +11,7 @@ import '../features/modifications/presentation/modification_list_screen.dart';
 import '../features/orders/presentation/purchase_history_screen.dart';
 import '../features/storefront/presentation/ar_scene_screen_stub.dart'
     if (dart.library.io) '../features/storefront/presentation/ar_scene_screen.dart';
+import '../features/storefront/presentation/staging_screen.dart';
 import '../features/storefront/presentation/storefront_screens.dart';
 
 String? resolveAppRedirect({
@@ -123,6 +124,14 @@ GoRouter createAppRouter(AuthProvider authProvider) {
             path: 'ar-scene',
             builder: (context, state) {
               return ARSceneScreen(
+                initialProductId: state.uri.queryParameters['product'],
+              );
+            },
+          ),
+          GoRoute(
+            path: 'staging',
+            builder: (context, state) {
+              return StagingScreen(
                 initialProductId: state.uri.queryParameters['product'],
               );
             },
