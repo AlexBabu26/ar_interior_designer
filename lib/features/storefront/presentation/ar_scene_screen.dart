@@ -28,11 +28,13 @@ class _PlacedObject {
     required this.node,
     required this.anchor,
     required this.product,
+    required this.scale,
   });
 
-  final ARNode node;
+  ARNode node;
   final ARAnchor anchor;
   final Product product;
+  double scale;
 }
 
 class ARSceneScreen extends StatefulWidget {
@@ -94,15 +96,6 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
     _arObjectManager = arObjectManager;
     _arAnchorManager = arAnchorManager;
 
-    _arSessionManager!.onInitialize(
-      showFeaturePoints: false,
-      showPlanes: true,
-      showWorldOrigin: false,
-      handleTaps: true,
-      handlePans: true,
-      handleRotation: true,
-      showAnimatedGuide: true,
-    );
     _arObjectManager!.onInitialize();
 
     _arSessionManager!.onPlaneOrPointTap = _onPlaneOrPointTapped;
@@ -110,9 +103,24 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
     _arObjectManager!.onPanEnd = _onPanEnd;
     _arObjectManager!.onRotationEnd = _onRotationEnd;
 
+    _applyInteractionMode();
+
     setState(() {
       _arReady = true;
     });
+  }
+
+  void _applyInteractionMode() {
+    final interacting = !_isPlacingProduct;
+    _arSessionManager!.onInitialize(
+      showFeaturePoints: false,
+      showPlanes: true,
+      showWorldOrigin: false,
+      handleTaps: true,
+      handlePans: interacting,
+      handleRotation: interacting,
+      showAnimatedGuide: !interacting,
+    );
   }
 
   Future<void> _onPlaneOrPointTapped(
@@ -157,10 +165,12 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
           node: newNode,
           anchor: newAnchor,
           product: _pendingProduct!,
+          scale: _pendingScale,
         ));
         _isPlacingProduct = false;
         _pendingProduct = null;
       });
+      _applyInteractionMode();
     } else {
       _arAnchorManager!.removeAnchor(newAnchor);
       _showSnack('Failed to place the model. Check the 3D file URL.');
@@ -178,9 +188,13 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
     });
   }
 
-  void _onPanEnd(String nodeName, Matrix4 newTransform) {}
+  void _onPanEnd(String nodeName, Matrix4 newTransform) {
+    // Plugin already moved the node on the native side; nothing extra needed.
+  }
 
-  void _onRotationEnd(String nodeName, Matrix4 newTransform) {}
+  void _onRotationEnd(String nodeName, Matrix4 newTransform) {
+    // Plugin already rotated the node on the native side.
+  }
 
   void _enterPlacementMode(Product product) {
     setState(() {
@@ -188,6 +202,7 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
       _isPlacingProduct = true;
       _selectedNodeName = null;
     });
+    _applyInteractionMode();
   }
 
   void _cancelPlacement() {
@@ -195,6 +210,7 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
       _isPlacingProduct = false;
       _pendingProduct = null;
     });
+    _applyInteractionMode();
   }
 
   Future<void> _deleteSelected() async {
@@ -212,6 +228,41 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
       _placedObjects.removeAt(index);
       _selectedNodeName = null;
     });
+  }
+
+  Future<void> _scaleSelected(double newScale) async {
+    if (_selectedNodeName == null) return;
+    final idx = _placedObjects.indexWhere(
+      (o) => o.node.name == _selectedNodeName,
+    );
+    if (idx == -1) return;
+
+    final obj = _placedObjects[idx];
+    await _arObjectManager!.removeNode(obj.node);
+
+    final replacement = ARNode(
+      type: NodeType.webGLB,
+      uri: obj.product.modelUrlResolved,
+      scale: vm.Vector3(newScale, newScale, newScale),
+      position: vm.Vector3.zero(),
+      data: {'productId': obj.product.id},
+    );
+
+    final ok = await _arObjectManager!.addNode(
+      replacement,
+      planeAnchor: obj.anchor as ARPlaneAnchor,
+    );
+
+    if (ok == true) {
+      setState(() {
+        obj.node = replacement;
+        obj.scale = newScale;
+        _selectedNodeName = replacement.name;
+      });
+    } else {
+      await _arObjectManager!.addNode(obj.node, planeAnchor: obj.anchor as ARPlaneAnchor);
+      _showSnack('Could not rescale the model.');
+    }
   }
 
   Future<void> _clearAll() async {
@@ -423,49 +474,94 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
 
     return Positioned(
       bottom: 100,
-      left: 20,
-      right: 20,
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppTheme.richCharcoal.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(20),
+      left: 16,
+      right: 16,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppTheme.richCharcoal.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.open_with_rounded, color: Colors.white54, size: 14),
+                SizedBox(width: 6),
+                Text('Drag to move · Two fingers to rotate',
+                    style: TextStyle(color: Colors.white54, fontSize: 11)),
+              ],
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.open_with_rounded,
-                  color: Colors.white70, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                selected.product.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.richCharcoal.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  selected.product.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              _circleButton(
-                icon: Icons.delete_outline_rounded,
-                onTap: _deleteSelected,
-                tooltip: 'Delete',
-                size: 36,
-                iconSize: 18,
-                color: Colors.redAccent,
-              ),
-              const SizedBox(width: 8),
-              _circleButton(
-                icon: Icons.close_rounded,
-                onTap: () => setState(() => _selectedNodeName = null),
-                tooltip: 'Deselect',
-                size: 36,
-                iconSize: 18,
-              ),
-            ],
+                const SizedBox(width: 14),
+                _circleButton(
+                  icon: Icons.remove_rounded,
+                  onTap: () {
+                    final s = (selected.scale - 0.03).clamp(0.01, 1.0);
+                    _scaleSelected(s);
+                  },
+                  tooltip: 'Scale down',
+                  size: 34,
+                  iconSize: 16,
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    '${(selected.scale * 500).round()}%',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ),
+                _circleButton(
+                  icon: Icons.add_rounded,
+                  onTap: () {
+                    final s = (selected.scale + 0.03).clamp(0.01, 1.0);
+                    _scaleSelected(s);
+                  },
+                  tooltip: 'Scale up',
+                  size: 34,
+                  iconSize: 16,
+                ),
+                const SizedBox(width: 10),
+                _circleButton(
+                  icon: Icons.delete_outline_rounded,
+                  onTap: _deleteSelected,
+                  tooltip: 'Delete',
+                  size: 34,
+                  iconSize: 16,
+                  color: Colors.redAccent,
+                ),
+                const SizedBox(width: 6),
+                _circleButton(
+                  icon: Icons.close_rounded,
+                  onTap: () => setState(() => _selectedNodeName = null),
+                  tooltip: 'Deselect',
+                  size: 34,
+                  iconSize: 16,
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
