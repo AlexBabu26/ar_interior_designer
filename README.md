@@ -192,19 +192,42 @@ flutter run -d windows
 
 (Requires Windows desktop support; `flutter doctor` will mention it.)
 
-**Android emulator or device:**
+**Android emulator:**
 
-1. Start an emulator from Android Studio (or connect a device with USB debugging).
+1. Start an emulator from Android Studio.
 2. Run:
 
 ```powershell
 flutter run
 ```
 
-Or pick a device ID from `flutter devices`:
+**Physical Android device:**
+
+1. Connect your phone via USB and enable **USB debugging** in Developer options.
+2. Verify the device is visible:
+
+```powershell
+flutter devices
+```
+
+3. If the Dart Frog backend is running (for local 3D model files), set up a reverse port forward so the phone's `localhost:8080` reaches the PC:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" reverse tcp:8080 tcp:8080
+```
+
+> **Why?** In debug mode the app loads 3D models from `http://localhost:8080` (the Dart Frog server on your PC). On an emulator this works automatically, but a physical phone's `localhost` refers to the phone itself. `adb reverse` tunnels the port back to the PC. You need to re-run this command each time you reconnect the USB cable.
+
+4. Run:
 
 ```powershell
 flutter run -d <device_id>
+```
+
+Or, if only one Android device is connected:
+
+```powershell
+flutter run -d android
 ```
 
 The app will connect to the configured **Supabase** project (see `lib/config/supabase_config.dart`). If you use the Dart Frog backend, keep it running in the other terminal.
@@ -222,6 +245,8 @@ From **project root** (`ar_interior_designer`):
 | Run (default)     | `flutter run`        |
 | Run on Chrome     | `flutter run -d chrome` |
 | Run on Windows    | `flutter run -d windows` |
+| Run on phone      | `flutter run -d android` |
+| ADB reverse port  | `& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" reverse tcp:8080 tcp:8080` |
 | Run tests         | `flutter test`       |
 | Check environment | `flutter doctor`     |
 
@@ -245,6 +270,12 @@ From **project root** for backend:
 
 - **Android / Windows not available**  
   Run `flutter doctor` and follow its instructions (e.g. accept Android licenses, install Visual Studio for Windows desktop).
+
+- **"Clear Text HTTP traffic to localhost not permitted" on a physical device**  
+  The Android manifest must allow cleartext to localhost. This project includes a `network_security_config.xml` that permits it. If you still see the error, uninstall the app from the phone first, then rebuild with `flutter run`.
+
+- **"Failed to connect to localhost:8080" for 3D models on a physical device**  
+  The Dart Frog server runs on your PC, not the phone. Run `adb reverse tcp:8080 tcp:8080` to tunnel the port (see step 5.2 above). Re-run after every USB reconnect.
 
 - **Supabase**  
   The app uses Supabase by default. Configure URL and anon key in `lib/config/supabase_config.dart` for your project.
