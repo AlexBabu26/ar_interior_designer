@@ -201,7 +201,7 @@ flutter run -d windows
 flutter run
 ```
 
-**Physical Android device:**
+**Physical Android device (recommended — use the helper script):**
 
 1. Connect your phone via USB and enable **USB debugging** in Developer options.
 2. Verify the device is visible:
@@ -210,25 +210,26 @@ flutter run
 flutter devices
 ```
 
-3. If the Dart Frog backend is running (for local 3D model files), set up a reverse port forward so the phone's `localhost:8080` reaches the PC:
+3. Run the helper script from the project root:
+
+```powershell
+.\run_device.ps1
+```
+
+This script automatically sets up ADB port forwarding for the Dart Frog backend and launches `flutter run` on the connected device.
+
+> **Why port forwarding?** In debug mode the app loads 3D models from `http://localhost:8080` (the Dart Frog server on your PC). On an emulator this works automatically, but a physical phone's `localhost` refers to the phone itself. The script runs `adb reverse tcp:8080 tcp:8080` to tunnel the port back to the PC before every launch.
+
+**Physical Android device (manual alternative):**
+
+If you prefer to run each step yourself:
 
 ```powershell
 & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" reverse tcp:8080 tcp:8080
-```
-
-> **Why?** In debug mode the app loads 3D models from `http://localhost:8080` (the Dart Frog server on your PC). On an emulator this works automatically, but a physical phone's `localhost` refers to the phone itself. `adb reverse` tunnels the port back to the PC. You need to re-run this command each time you reconnect the USB cable.
-
-4. Run:
-
-```powershell
 flutter run -d <device_id>
 ```
 
-Or, if only one Android device is connected:
-
-```powershell
-flutter run -d android
-```
+You need to re-run `adb reverse` each time you reconnect the USB cable.
 
 The app will connect to the configured **Supabase** project (see `lib/config/supabase_config.dart`). If you use the Dart Frog backend, keep it running in the other terminal.
 
@@ -245,7 +246,8 @@ From **project root** (`ar_interior_designer`):
 | Run (default)     | `flutter run`        |
 | Run on Chrome     | `flutter run -d chrome` |
 | Run on Windows    | `flutter run -d windows` |
-| Run on phone      | `flutter run -d android` |
+| Run on phone      | `.\run_device.ps1` (auto port-forward + run) |
+| Run on phone (manual) | `flutter run -d android` |
 | ADB reverse port  | `& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" reverse tcp:8080 tcp:8080` |
 | Run tests         | `flutter test`       |
 | Check environment | `flutter doctor`     |
@@ -275,7 +277,7 @@ From **project root** for backend:
   The Android manifest must allow cleartext to localhost. This project includes a `network_security_config.xml` that permits it. If you still see the error, uninstall the app from the phone first, then rebuild with `flutter run`.
 
 - **"Failed to connect to localhost:8080" for 3D models on a physical device**  
-  The Dart Frog server runs on your PC, not the phone. Run `adb reverse tcp:8080 tcp:8080` to tunnel the port (see step 5.2 above). Re-run after every USB reconnect.
+  The Dart Frog server runs on your PC, not the phone. Use `.\run_device.ps1` which handles port forwarding automatically, or run `adb reverse tcp:8080 tcp:8080` manually (see step 5.2 above). Re-run after every USB reconnect.
 
 - **Supabase**  
   The app uses Supabase by default. Configure URL and anon key in `lib/config/supabase_config.dart` for your project.

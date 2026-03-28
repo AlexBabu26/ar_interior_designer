@@ -146,7 +146,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                                     mainAxisSpacing: 24,
                                     crossAxisSpacing: 24,
                                     childAspectRatio: crossAxisCount == 1
-                                        ? 1.02
+                                        ? 0.82
                                         : 0.76,
                                   ),
                               itemCount: filteredProducts.length,
@@ -186,6 +186,7 @@ class ProductCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
+              flex: 3,
               child: Hero(
                 tag: 'product-${product.id}',
                 child: Container(
@@ -200,8 +201,9 @@ class ProductCard extends StatelessWidget {
               ),
             ),
             Expanded(
+              flex: 2,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -212,22 +214,16 @@ class ProductCard extends StatelessWidget {
                         letterSpacing: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      product.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      product.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.deepUmber,
+                    const SizedBox(height: 6),
+                    Flexible(
+                      child: Text(
+                        product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
                     const Spacer(),
-                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Text(
