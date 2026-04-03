@@ -51,12 +51,10 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
   ARObjectManager? _arObjectManager;
   ARAnchorManager? _arAnchorManager;
 
-  final List<_PlacedObject> _placedObjects = [];
-  String? _selectedNodeName;
+  _PlacedObject? _placedObject;
 
   bool _isPlacingProduct = false;
   Product? _pendingProduct;
-
   double _pendingScale = 0.2;
 
   bool _arReady = false;
@@ -98,29 +96,24 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
 
     _arObjectManager!.onInitialize();
 
-    _arSessionManager!.onPlaneOrPointTap = _onPlaneOrPointTapped;
-    _arObjectManager!.onNodeTap = _onNodeTapped;
-    _arObjectManager!.onPanEnd = _onPanEnd;
-    _arObjectManager!.onRotationEnd = _onRotationEnd;
-
-    _applyInteractionMode();
-
-    setState(() {
-      _arReady = true;
-    });
-  }
-
-  void _applyInteractionMode() {
-    final interacting = !_isPlacingProduct;
     _arSessionManager!.onInitialize(
       showFeaturePoints: false,
       showPlanes: true,
       showWorldOrigin: false,
       handleTaps: true,
-      handlePans: interacting,
-      handleRotation: interacting,
-      showAnimatedGuide: !interacting,
+      handlePans: true,
+      handleRotation: true,
+      showAnimatedGuide: true,
     );
+
+    _arSessionManager!.onPlaneOrPointTap = _onPlaneOrPointTapped;
+    _arObjectManager!.onNodeTap = _onNodeTapped;
+    _arObjectManager!.onPanEnd = _onPanEnd;
+    _arObjectManager!.onRotationEnd = _onRotationEnd;
+
+    setState(() {
+      _arReady = true;
+    });
   }
 
   Future<void> _onPlaneOrPointTapped(
@@ -136,6 +129,9 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
       _showSnack('No surface detected. Try pointing at the floor.');
       return;
     }
+
+    // Remove existing object before placing the new one.
+    await _removeCurrentObject();
 
     final hit = planeHit.first;
     final newAnchor = ARPlaneAnchor(transformation: hit.worldTransform);
@@ -161,16 +157,15 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
 
     if (didAddNode == true) {
       setState(() {
-        _placedObjects.add(_PlacedObject(
+        _placedObject = _PlacedObject(
           node: newNode,
           anchor: newAnchor,
           product: _pendingProduct!,
           scale: _pendingScale,
-        ));
+        );
         _isPlacingProduct = false;
         _pendingProduct = null;
       });
-      _applyInteractionMode();
     } else {
       _arAnchorManager!.removeAnchor(newAnchor);
       _showSnack('Failed to place the model. Check the 3D file URL.');
@@ -178,31 +173,18 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
   }
 
   Future<void> _onNodeTapped(List<String> nodeNames) async {
-    if (nodeNames.isEmpty) return;
-    setState(() {
-      if (_selectedNodeName == nodeNames.first) {
-        _selectedNodeName = null;
-      } else {
-        _selectedNodeName = nodeNames.first;
-      }
-    });
+    // Single object — nothing to select/deselect.
   }
 
-  void _onPanEnd(String nodeName, Matrix4 newTransform) {
-    // Plugin already moved the node on the native side; nothing extra needed.
-  }
+  void _onPanEnd(String nodeName, Matrix4 newTransform) {}
 
-  void _onRotationEnd(String nodeName, Matrix4 newTransform) {
-    // Plugin already rotated the node on the native side.
-  }
+  void _onRotationEnd(String nodeName, Matrix4 newTransform) {}
 
   void _enterPlacementMode(Product product) {
     setState(() {
       _pendingProduct = product;
       _isPlacingProduct = true;
-      _selectedNodeName = null;
     });
-    _applyInteractionMode();
   }
 
   void _cancelPlacement() {
@@ -210,70 +192,60 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
       _isPlacingProduct = false;
       _pendingProduct = null;
     });
-    _applyInteractionMode();
   }
 
-  Future<void> _deleteSelected() async {
-    if (_selectedNodeName == null) return;
-    final index = _placedObjects.indexWhere(
-      (obj) => obj.node.name == _selectedNodeName,
-    );
-    if (index == -1) return;
-
-    final obj = _placedObjects[index];
-    _arObjectManager!.removeNode(obj.node);
-    _arAnchorManager!.removeAnchor(obj.anchor);
-
+  Future<void> _removeCurrentObject() async {
+    final obj = _placedObject;
+    if (obj == null) return;
+    _arObjectManager?.removeNode(obj.node);
+    _arAnchorManager?.removeAnchor(obj.anchor);
     setState(() {
-      _placedObjects.removeAt(index);
-      _selectedNodeName = null;
+      _placedObject = null;
     });
   }
 
-  Future<void> _scaleSelected(double newScale) async {
-    if (_selectedNodeName == null) return;
-    final idx = _placedObjects.indexWhere(
-      (o) => o.node.name == _selectedNodeName,
-    );
-    if (idx == -1) return;
+  bool _isScaling = false;
 
-    final obj = _placedObjects[idx];
-    await _arObjectManager!.removeNode(obj.node);
+  Future<void> _scaleObject(double newScale) async {
+    final obj = _placedObject;
+    if (obj == null || _isScaling) return;
+    _isScaling = true;
 
-    final replacement = ARNode(
-      type: NodeType.webGLB,
-      uri: obj.product.modelUrlResolved,
-      scale: vm.Vector3(newScale, newScale, newScale),
-      position: vm.Vector3.zero(),
-      data: {'productId': obj.product.id},
-    );
+    try {
+      final oldNode = obj.node;
+      await _arObjectManager!.removeNode(oldNode);
+      // Give ARCore time to finish removing the old model from the scene
+      // before adding the replacement, otherwise both overlap visually.
+      await Future.delayed(const Duration(milliseconds: 350));
 
-    final ok = await _arObjectManager!.addNode(
-      replacement,
-      planeAnchor: obj.anchor as ARPlaneAnchor,
-    );
+      final replacement = ARNode(
+        type: NodeType.webGLB,
+        uri: obj.product.modelUrlResolved,
+        scale: vm.Vector3(newScale, newScale, newScale),
+        position: vm.Vector3.zero(),
+        data: {'productId': obj.product.id},
+      );
 
-    if (ok == true) {
-      setState(() {
-        obj.node = replacement;
-        obj.scale = newScale;
-        _selectedNodeName = replacement.name;
-      });
-    } else {
-      await _arObjectManager!.addNode(obj.node, planeAnchor: obj.anchor as ARPlaneAnchor);
-      _showSnack('Could not rescale the model.');
+      final ok = await _arObjectManager!.addNode(
+        replacement,
+        planeAnchor: obj.anchor as ARPlaneAnchor,
+      );
+
+      if (ok == true) {
+        setState(() {
+          obj.node = replacement;
+          obj.scale = newScale;
+        });
+      } else {
+        await _arObjectManager!.addNode(
+          oldNode,
+          planeAnchor: obj.anchor as ARPlaneAnchor,
+        );
+        _showSnack('Could not rescale the model.');
+      }
+    } finally {
+      _isScaling = false;
     }
-  }
-
-  Future<void> _clearAll() async {
-    for (final obj in _placedObjects) {
-      _arObjectManager?.removeNode(obj.node);
-      _arAnchorManager?.removeAnchor(obj.anchor);
-    }
-    setState(() {
-      _placedObjects.clear();
-      _selectedNodeName = null;
-    });
   }
 
   void _showSnack(String message) {
@@ -281,14 +253,6 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
-  }
-
-  _PlacedObject? get _selectedObject {
-    if (_selectedNodeName == null) return null;
-    final idx = _placedObjects.indexWhere(
-      (o) => o.node.name == _selectedNodeName,
-    );
-    return idx == -1 ? null : _placedObjects[idx];
   }
 
   void _showProductPicker() {
@@ -306,6 +270,10 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
       ),
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -345,7 +313,8 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
           _buildTopBar(context),
           if (_isPlacingProduct && _pendingProduct != null)
             _buildPlacementBanner(context),
-          if (_selectedNodeName != null) _buildSelectionToolbar(context),
+          if (_placedObject != null && !_isPlacingProduct)
+            _buildObjectToolbar(context),
           _buildBottomControls(context),
           if (kDebugMode) _buildDebugBanner(context),
         ],
@@ -385,36 +354,6 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
                       ?.copyWith(color: Colors.white),
                 ),
               ),
-              const Spacer(),
-              if (_placedObjects.isNotEmpty)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.richCharcoal.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.chair_outlined,
-                          size: 16, color: Colors.white),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${_placedObjects.length}',
-                        style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-              if (_placedObjects.isNotEmpty) const SizedBox(width: 8),
-              if (_placedObjects.isNotEmpty)
-                _circleButton(
-                  icon: Icons.delete_sweep_outlined,
-                  onTap: _clearAll,
-                  tooltip: 'Clear all',
-                ),
             ],
           ),
         ),
@@ -468,9 +407,8 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
     );
   }
 
-  Widget _buildSelectionToolbar(BuildContext context) {
-    final selected = _selectedObject;
-    if (selected == null) return const SizedBox.shrink();
+  Widget _buildObjectToolbar(BuildContext context) {
+    final obj = _placedObject!;
 
     return Positioned(
       bottom: 100,
@@ -506,7 +444,7 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  selected.product.name,
+                  obj.product.name,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -517,8 +455,8 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
                 _circleButton(
                   icon: Icons.remove_rounded,
                   onTap: () {
-                    final s = (selected.scale - 0.03).clamp(0.01, 1.0);
-                    _scaleSelected(s);
+                    final s = (obj.scale - 0.03).clamp(0.01, 1.0);
+                    _scaleObject(s);
                   },
                   tooltip: 'Scale down',
                   size: 34,
@@ -527,15 +465,16 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Text(
-                    '${(selected.scale * 500).round()}%',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    '${(obj.scale * 500).round()}%',
+                    style:
+                        const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ),
                 _circleButton(
                   icon: Icons.add_rounded,
                   onTap: () {
-                    final s = (selected.scale + 0.03).clamp(0.01, 1.0);
-                    _scaleSelected(s);
+                    final s = (obj.scale + 0.03).clamp(0.01, 1.0);
+                    _scaleObject(s);
                   },
                   tooltip: 'Scale up',
                   size: 34,
@@ -544,19 +483,11 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
                 const SizedBox(width: 10),
                 _circleButton(
                   icon: Icons.delete_outline_rounded,
-                  onTap: _deleteSelected,
-                  tooltip: 'Delete',
+                  onTap: _removeCurrentObject,
+                  tooltip: 'Remove',
                   size: 34,
                   iconSize: 16,
                   color: Colors.redAccent,
-                ),
-                const SizedBox(width: 6),
-                _circleButton(
-                  icon: Icons.close_rounded,
-                  onTap: () => setState(() => _selectedNodeName = null),
-                  tooltip: 'Deselect',
-                  size: 34,
-                  iconSize: 16,
                 ),
               ],
             ),
@@ -567,6 +498,8 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
   }
 
   Widget _buildBottomControls(BuildContext context) {
+    final hasObject = _placedObject != null;
+
     return Positioned(
       bottom: 0,
       left: 0,
@@ -582,8 +515,10 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
                   onPressed: _arReady && !_isPlacingProduct
                       ? _showProductPicker
                       : null,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Add Furniture'),
+                  icon: Icon(hasObject
+                      ? Icons.swap_horiz_rounded
+                      : Icons.add_rounded),
+                  label: Text(hasObject ? 'Change Furniture' : 'Add Furniture'),
                   style: FilledButton.styleFrom(
                     backgroundColor:
                         AppTheme.richCharcoal.withValues(alpha: 0.85),
@@ -681,8 +616,7 @@ class _ScaleChip extends StatelessWidget {
         ),
         child: Text(
           _label,
-          style:
-              const TextStyle(color: Colors.white, fontSize: 12),
+          style: const TextStyle(color: Colors.white, fontSize: 12),
         ),
       ),
     );
@@ -788,7 +722,8 @@ class _ProductPickerSheet extends StatelessWidget {
                     }
                     if (snapshot.hasError) {
                       return Center(
-                        child: Text('Error loading products: ${snapshot.error}'),
+                        child:
+                            Text('Error loading products: ${snapshot.error}'),
                       );
                     }
                     final products = (snapshot.data ?? [])

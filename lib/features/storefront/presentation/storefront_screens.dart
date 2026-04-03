@@ -1,7 +1,9 @@
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 import 'package:provider/provider.dart';
 
@@ -465,169 +467,201 @@ class ProductDetailScreen extends StatelessWidget {
 
           return SingleChildScrollView(
             child: AppPageWidth(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 900;
+              child: Column(
+                children: [
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = constraints.maxWidth >= 900;
 
-                  final imagePanel = AppPanel(
-                    padding: EdgeInsets.zero,
-                    child: AspectRatio(
-                      aspectRatio: isWide ? 0.9 : 1.1,
-                      child: Hero(
-                        tag: 'product-${product.id}',
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            image: DecorationImage(
-                              image: NetworkImage(product.imageUrlResolved),
-                              fit: BoxFit.cover,
+                      final imagePanel = AppPanel(
+                        padding: EdgeInsets.zero,
+                        child: AspectRatio(
+                          aspectRatio: isWide ? 0.9 : 1.1,
+                          child: Hero(
+                            tag: 'product-${product.id}',
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                image: DecorationImage(
+                                  image:
+                                      NetworkImage(product.imageUrlResolved),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  );
+                      );
 
-                  final detailPanel = AppPanel(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _categorySummary(product).toUpperCase(),
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: AppTheme.burntSienna,
-                                letterSpacing: 1.8,
+                      final detailPanel = AppPanel(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _categorySummary(product).toUpperCase(),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    color: AppTheme.burntSienna,
+                                    letterSpacing: 1.8,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              product.name,
+                              style:
+                                  Theme.of(context).textTheme.displayMedium,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              formatCurrency(product.price),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .secondary,
+                                    fontSize: 24,
+                                  ),
+                            ),
+                            const SizedBox(height: 20),
+                            Text(
+                              product.description,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge
+                                  ?.copyWith(color: AppTheme.deepUmber),
+                            ),
+                            const SizedBox(height: 24),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: product.categories
+                                  .map(
+                                    (category) =>
+                                        Chip(label: Text(category)),
+                                  )
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 28),
+                            AppPanel(
+                              padding: const EdgeInsets.all(18),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.texture_rounded),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Explore finishes up close, then move directly into AR placement when you are ready.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium,
+                                    ),
+                                  ),
+                                ],
                               ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          product.name,
-                          style: Theme.of(context).textTheme.displayMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          formatCurrency(product.price),
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.secondary,
-                                fontSize: 24,
-                              ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          product.description,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(color: AppTheme.deepUmber),
-                        ),
-                        const SizedBox(height: 24),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: product.categories
-                              .map((category) => Chip(label: Text(category)))
-                              .toList(),
-                        ),
-                        const SizedBox(height: 28),
-                        AppPanel(
-                          padding: const EdgeInsets.all(18),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.texture_rounded),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Explore finishes up close, then move directly into AR placement when you are ready.',
-                                  style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 28),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: () =>
+                                        context.go('/ar/${product.id}'),
+                                    icon: const Icon(
+                                      Icons.view_in_ar_outlined,
+                                    ),
+                                    label: const Text('View in AR'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () async {
+                                      await context
+                                          .read<CartProvider>()
+                                          .addItem(product);
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '${product.name} added to your bag.',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.shopping_bag_outlined,
+                                    ),
+                                    label: const Text('Add to bag'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (product.modelUrlResolved.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: () => context.go(
+                                    '/ar-scene?product=${product.id}',
+                                  ),
+                                  icon: const Icon(
+                                    Icons.space_dashboard_outlined,
+                                  ),
+                                  label: const Text('Add to AR Scene'),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppTheme.burntSienna,
+                                  ),
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () =>
-                                    context.go('/ar/${product.id}'),
-                                icon: const Icon(Icons.view_in_ar_outlined),
-                                label: const Text('View in AR'),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
                               child: OutlinedButton.icon(
-                                onPressed: () async {
-                                  await context.read<CartProvider>().addItem(
-                                    product,
-                                  );
-                                  if (!context.mounted) {
-                                    return;
-                                  }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        '${product.name} added to your bag.',
-                                      ),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.shopping_bag_outlined),
-                                label: const Text('Add to bag'),
+                                onPressed: () => context.go(
+                                  '/staging?product=${product.id}',
+                                ),
+                                icon:
+                                    const Icon(Icons.photo_filter_outlined),
+                                label: const Text('Stage in Room'),
                               ),
                             ),
                           ],
                         ),
-                        if (product.modelUrlResolved.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.icon(
-                              onPressed: () => context.go(
-                                '/ar-scene?product=${product.id}',
-                              ),
-                              icon: const Icon(Icons.space_dashboard_outlined),
-                              label: const Text('Add to AR Scene'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppTheme.burntSienna,
-                              ),
-                            ),
-                          ),
+                      );
+
+                      if (!isWide) {
+                        return Column(
+                          children: [
+                            imagePanel,
+                            const SizedBox(height: 24),
+                            detailPanel,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 6, child: imagePanel),
+                          const SizedBox(width: 24),
+                          Expanded(flex: 5, child: detailPanel),
                         ],
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () => context.go(
-                              '/staging?product=${product.id}',
-                            ),
-                            icon: const Icon(Icons.photo_filter_outlined),
-                            label: const Text('Stage in Room'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  if (!isWide) {
-                    return Column(
-                      children: [
-                        imagePanel,
-                        const SizedBox(height: 24),
-                        detailPanel,
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 6, child: imagePanel),
-                      const SizedBox(width: 24),
-                      Expanded(flex: 5, child: detailPanel),
-                    ],
-                  );
-                },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _AiSceneGeneratorSection(
+                    product: product,
+                    generatedImageRepository:
+                        context.read<GeneratedImageRepository>(),
+                  ),
+                  const SizedBox(height: 40),
+                ],
               ),
             ),
           );
@@ -1701,6 +1735,420 @@ class _ArGeneratedImagesSheet extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// AI Scene Generator – placed on the product detail page so users can
+// visualise the current product in a room scene using OpenAI image editing.
+// ---------------------------------------------------------------------------
+
+const _roomScenePresets = <({String label, String description})>[
+  (
+    label: 'Modern Living Room',
+    description:
+        'a modern minimalist living room with white walls, light oak hardwood floors, and large windows with natural sunlight',
+  ),
+  (
+    label: 'Cozy Bedroom',
+    description:
+        'a cozy Scandinavian bedroom with warm lighting, linen curtains, and natural wood accents',
+  ),
+  (
+    label: 'Industrial Loft',
+    description:
+        'an industrial loft space with exposed brick walls, concrete floors, and tall metal-frame windows',
+  ),
+  (
+    label: 'Contemporary Office',
+    description:
+        'a bright contemporary home office with a clean desk setup and large floor-to-ceiling windows',
+  ),
+  (
+    label: 'Classic Study',
+    description:
+        'a traditional study room with dark wood bookshelves, a Persian rug, and warm ambient lighting',
+  ),
+  (
+    label: 'Bohemian Space',
+    description:
+        'a bohemian living space with colorful textiles, indoor plants, and eclectic decor on wooden floors',
+  ),
+];
+
+class _AiSceneGeneratorSection extends StatefulWidget {
+  const _AiSceneGeneratorSection({
+    required this.product,
+    required this.generatedImageRepository,
+  });
+
+  final Product product;
+  final GeneratedImageRepository generatedImageRepository;
+
+  @override
+  State<_AiSceneGeneratorSection> createState() =>
+      _AiSceneGeneratorSectionState();
+}
+
+class _AiSceneGeneratorSectionState extends State<_AiSceneGeneratorSection> {
+  final _promptController = TextEditingController();
+  final _repository = NvidiaNimImageRepository();
+
+  bool _isLoading = false;
+  bool _isSaving = false;
+  Uint8List? _resultBytes;
+  String? _error;
+
+  Uint8List? _sceneImageBytes;
+  String? _sceneImageName;
+  int? _selectedPresetIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyPreset(0);
+  }
+
+  @override
+  void dispose() {
+    _promptController.dispose();
+    super.dispose();
+  }
+
+  void _applyPreset(int index) {
+    _selectedPresetIndex = index;
+    final preset = _roomScenePresets[index];
+    _promptController.text =
+        'Place this ${widget.product.name} naturally in ${ preset.description}. '
+        'Make the result photorealistic with proper lighting and shadows.';
+  }
+
+  Future<void> _pickSceneImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    if (file.bytes == null) return;
+    setState(() {
+      _sceneImageBytes = Uint8List.fromList(file.bytes!);
+      _sceneImageName = file.name;
+      _selectedPresetIndex = null;
+      _promptController.text =
+          'Place this ${widget.product.name} naturally in this room scene. '
+          'Make it look photorealistic with proper lighting and shadows.';
+    });
+  }
+
+  void _clearSceneImage() {
+    setState(() {
+      _sceneImageBytes = null;
+      _sceneImageName = null;
+      if (_selectedPresetIndex == null) {
+        _applyPreset(0);
+      }
+    });
+  }
+
+  void _showSavedImagesSheet() {
+    final auth = context.read<AuthProvider>();
+    if (!auth.isAuthenticated || auth.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sign in to choose from your generated images'),
+        ),
+      );
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _ArGeneratedImagesSheet(
+        userId: auth.currentUser!.id,
+        onSelect: (url) async {
+          Navigator.of(ctx).pop();
+          try {
+            final response = await http.get(Uri.parse(url));
+            if (response.statusCode == 200 && mounted) {
+              setState(() {
+                _sceneImageBytes = response.bodyBytes;
+                _sceneImageName = 'Saved image';
+                _selectedPresetIndex = null;
+                _promptController.text =
+                    'Place this ${widget.product.name} naturally in this room '
+                    'scene. Make it look photorealistic with proper lighting '
+                    'and shadows.';
+              });
+            }
+          } catch (_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to load the image')),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _generate() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _resultBytes = null;
+    });
+
+    try {
+      final productImgResponse =
+          await http.get(Uri.parse(widget.product.imageUrlResolved));
+      if (productImgResponse.statusCode != 200) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _error = 'Could not download the product image.';
+        });
+        return;
+      }
+
+      final images = <List<int>>[productImgResponse.bodyBytes];
+      if (_sceneImageBytes != null) {
+        images.add(_sceneImageBytes!);
+      }
+
+      final result = await _repository.editImage(
+        apiKey: _GenerateImageSectionState._apiKey,
+        prompt: _promptController.text,
+        images: images,
+        proxyUrl: _GenerateImageSectionState._proxyUrl,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _resultBytes = result.imageBytes != null
+            ? Uint8List.fromList(result.imageBytes!)
+            : null;
+        _error = result.error;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Error: $e';
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    final userId = context.read<AuthProvider>().currentUser?.id;
+    if (userId == null || _resultBytes == null || _resultBytes!.isEmpty) return;
+
+    final prompt = _promptController.text.trim();
+    if (prompt.isEmpty) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final imagePath =
+          await saveGeneratedImageToStorage(userId, _resultBytes!);
+      await widget.generatedImageRepository.insert(
+        userId: userId,
+        prompt: prompt,
+        imagePath: imagePath,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image saved to your history')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
+    return AppPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(
+            eyebrow: 'AI powered',
+            title: 'Visualise in your space',
+            subtitle:
+                'See how this piece looks in a room. Upload a photo of your '
+                'own space, choose a preset room style, or pick from your '
+                'previously generated images.',
+          ),
+
+          if (!auth.isAuthenticated) ...[
+            const SizedBox(height: 20),
+            AppMessagePanel(
+              title: 'Sign in to generate scenes',
+              message:
+                  'AI scene generation is available when you are signed in.',
+              icon: Icons.login,
+              action: TextButton.icon(
+                onPressed: () => context.push('/login'),
+                icon: const Icon(Icons.login, size: 20),
+                label: const Text('Sign in'),
+              ),
+            ),
+          ] else ...[
+            // -- Room scene source ----------------------------------------
+            const SizedBox(height: 20),
+            Text(
+              'Room scene',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 10),
+
+            // Preset chips
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var i = 0; i < _roomScenePresets.length; i++)
+                  ChoiceChip(
+                    label: Text(_roomScenePresets[i].label),
+                    selected:
+                        _selectedPresetIndex == i && _sceneImageBytes == null,
+                    onSelected: (_) {
+                      setState(() {
+                        _sceneImageBytes = null;
+                        _sceneImageName = null;
+                        _applyPreset(i);
+                      });
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Upload / saved images row
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _pickSceneImage,
+                  icon: const Icon(Icons.upload_file, size: 18),
+                  label: const Text('Upload room photo'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _showSavedImagesSheet,
+                  icon: const Icon(Icons.photo_library_outlined, size: 18),
+                  label: const Text('From my images'),
+                ),
+              ],
+            ),
+
+            // Scene image preview
+            if (_sceneImageBytes != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(
+                      _sceneImageBytes!,
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _sceneImageName ?? 'Uploaded image',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _clearSceneImage,
+                    icon: const Icon(Icons.close, size: 20),
+                    tooltip: 'Remove scene image',
+                  ),
+                ],
+              ),
+            ],
+
+            // -- Prompt ---------------------------------------------------
+            const SizedBox(height: 20),
+            TextField(
+              controller: _promptController,
+              decoration: const InputDecoration(
+                labelText: 'Prompt',
+                hintText: 'Describe how the product should appear in the scene',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+
+            // -- Generate -------------------------------------------------
+            FilledButton.icon(
+              onPressed: _isLoading ? null : _generate,
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_awesome, size: 20),
+              label: Text(_isLoading ? 'Generating…' : 'Generate AI Scene'),
+            ),
+
+            // -- Error message --------------------------------------------
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              AppMessagePanel(
+                title: 'Generation failed',
+                message: _error!,
+                icon: Icons.error_outline_rounded,
+              ),
+            ],
+
+            // -- Result ---------------------------------------------------
+            if (_resultBytes != null && _resultBytes!.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 500),
+                  child: Image.memory(
+                    _resultBytes!,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _isSaving ? null : _save,
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined, size: 20),
+                label: Text(_isSaving ? 'Saving…' : 'Save to my history'),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 String _categorySummary(Product product) {
   if (product.categories.isEmpty) {

@@ -1,3 +1,5 @@
+# Run using ".\run_device.ps1"
+
 $ADB = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 
 if (-not (Test-Path $ADB)) {
