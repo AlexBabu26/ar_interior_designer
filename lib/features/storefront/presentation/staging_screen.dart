@@ -69,7 +69,9 @@ class _StagingScreenState extends State<StagingScreen> {
   void initState() {
     super.initState();
     if (widget.initialProductId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadInitialProduct());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _loadInitialProduct(),
+      );
     }
   }
 
@@ -116,9 +118,9 @@ class _StagingScreenState extends State<StagingScreen> {
   }
 
   void _clearAll() => setState(() {
-        _items.clear();
-        _selectedItemId = null;
-      });
+    _items.clear();
+    _selectedItemId = null;
+  });
 
   void _resizeSelected(double newSize) {
     final idx = _items.indexWhere((i) => i.id == _selectedItemId);
@@ -151,8 +153,10 @@ class _StagingScreenState extends State<StagingScreen> {
     final picked = await bg_picker.pickArBackgroundImage();
     if (picked == null || !mounted) return;
     try {
-      final url =
-          await uploadArBackgroundImage(auth.currentUser!.id, picked.bytes);
+      final url = await uploadArBackgroundImage(
+        auth.currentUser!.id,
+        picked.bytes,
+      );
       if (!mounted) return;
       setState(() => _backgroundImageUrl = url);
     } catch (e) {
@@ -205,8 +209,7 @@ class _StagingScreenState extends State<StagingScreen> {
       builder: (ctx) => Dialog(
         insetPadding: const EdgeInsets.all(16),
         clipBehavior: Clip.antiAlias,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * 0.72,
           child: Column(
@@ -250,8 +253,9 @@ class _StagingScreenState extends State<StagingScreen> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ── Build ────────────────────────────────────────────────────────────────────
@@ -350,10 +354,7 @@ class _StagingScreenState extends State<StagingScreen> {
                 height: item.size,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: AppTheme.burntSienna,
-                    width: 2.5,
-                  ),
+                  border: Border.all(color: AppTheme.burntSienna, width: 2.5),
                 ),
               ),
             if (isSelected)
@@ -394,30 +395,39 @@ class _StagingScreenState extends State<StagingScreen> {
             children: [
               _circleButton(
                 icon: Icons.arrow_back_rounded,
-                onTap: () => context.pop(),
+                onTap: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/');
+                  }
+                },
                 tooltip: 'Back',
               ),
               const SizedBox(width: 10),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.richCharcoal.withValues(alpha: 0.70),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'Stage Room',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(color: Colors.white),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: Colors.white),
                 ),
               ),
               const Spacer(),
               if (_items.isNotEmpty) ...[
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.richCharcoal.withValues(alpha: 0.70),
                     borderRadius: BorderRadius.circular(20),
@@ -425,13 +435,18 @@ class _StagingScreenState extends State<StagingScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.chair_outlined,
-                          size: 15, color: Colors.white),
+                      const Icon(
+                        Icons.chair_outlined,
+                        size: 15,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 5),
                       Text(
                         '${_items.length}',
                         style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w600),
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -467,17 +482,15 @@ class _StagingScreenState extends State<StagingScreen> {
             child: Text(
               item.product.name,
               style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13),
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: 8),
-          _StagingScaleChip(
-            value: item.size,
-            onChanged: _resizeSelected,
-          ),
+          _StagingScaleChip(value: item.size, onChanged: _resizeSelected),
           const SizedBox(width: 6),
           if (item.product.modelUrlResolved.isNotEmpty) ...[
             _circleButton(
@@ -532,10 +545,9 @@ class _StagingScreenState extends State<StagingScreen> {
             children: [
               Text(
                 'Background',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.white70),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.white70),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -587,10 +599,9 @@ class _StagingScreenState extends State<StagingScreen> {
             if (!auth.isAuthenticated)
               Text(
                 'Sign in to upload a room photo.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.white54),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.white54),
               )
             else
               Wrap(
@@ -614,7 +625,9 @@ class _StagingScreenState extends State<StagingScreen> {
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white54,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         textStyle: const TextStyle(fontSize: 12),
@@ -664,7 +677,8 @@ class _StagingScreenState extends State<StagingScreen> {
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 15),
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18)),
+            borderRadius: BorderRadius.circular(18),
+          ),
         ),
       ),
     );
@@ -708,12 +722,13 @@ class _StagingScaleChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final pct = (value / 140 * 100).round();
     return GestureDetector(
-      onTap: () => showDialog<double>(
-        context: context,
-        builder: (ctx) => _StagingScaleDialog(initial: value),
-      ).then((result) {
-        if (result != null) onChanged(result);
-      }),
+      onTap: () =>
+          showDialog<double>(
+            context: context,
+            builder: (ctx) => _StagingScaleDialog(initial: value),
+          ).then((result) {
+            if (result != null) onChanged(result);
+          }),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
@@ -833,7 +848,9 @@ class _ProductPickerSheet extends StatelessWidget {
                     }
                     if (snapshot.hasError) {
                       return Center(
-                        child: Text('Error loading products: ${snapshot.error}'),
+                        child: Text(
+                          'Error loading products: ${snapshot.error}',
+                        ),
                       );
                     }
                     final products = snapshot.data ?? [];
@@ -853,7 +870,9 @@ class _ProductPickerSheet extends StatelessWidget {
                     return ListView.separated(
                       controller: scrollController,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       itemCount: products.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
@@ -915,9 +934,9 @@ class _ProductPickerTile extends StatelessWidget {
                     Text(
                       _categorySummary().toUpperCase(),
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: AppTheme.burntSienna,
-                            letterSpacing: 1.4,
-                          ),
+                        color: AppTheme.burntSienna,
+                        letterSpacing: 1.4,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -929,16 +948,17 @@ class _ProductPickerTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       formatCurrency(product.price),
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: AppTheme.burntSienna),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.burntSienna,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.add_circle_outline_rounded,
-                  color: AppTheme.deepUmber),
+              const Icon(
+                Icons.add_circle_outline_rounded,
+                color: AppTheme.deepUmber,
+              ),
             ],
           ),
         ),
@@ -959,10 +979,7 @@ class _ProductPickerTile extends StatelessWidget {
 // ── Generated images sheet ─────────────────────────────────────────────────────
 
 class _GeneratedImagesSheet extends StatelessWidget {
-  const _GeneratedImagesSheet({
-    required this.userId,
-    required this.onSelect,
-  });
+  const _GeneratedImagesSheet({required this.userId, required this.onSelect});
 
   final String userId;
   final void Function(String url) onSelect;
@@ -986,8 +1003,10 @@ class _GeneratedImagesSheet extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('No generated images yet',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'No generated images yet',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'Generate images from the home page, then they will appear here.',
@@ -1017,8 +1036,7 @@ class _GeneratedImagesSheet extends StatelessWidget {
                 child: GridView.builder(
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,

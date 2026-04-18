@@ -15,11 +15,7 @@ Future<String> uploadProductModel({
   final uri = Uri.parse('$baseUrl/upload_product_model');
   final request = http.MultipartRequest('POST', uri);
   request.files.add(
-    http.MultipartFile.fromBytes(
-      'file',
-      fileBytes,
-      filename: fileName,
-    ),
+    http.MultipartFile.fromBytes('file', fileBytes, filename: fileName),
   );
   final streamed = await request.send();
   final response = await http.Response.fromStream(streamed);

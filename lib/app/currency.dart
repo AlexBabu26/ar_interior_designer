@@ -2,9 +2,7 @@
 /// Whole numbers show no decimals; others show two.
 String formatCurrency(double amount) {
   final isWhole = amount == amount.roundToDouble();
-  final value = isWhole
-      ? amount.toStringAsFixed(0)
-      : amount.toStringAsFixed(2);
+  final value = isWhole ? amount.toStringAsFixed(0) : amount.toStringAsFixed(2);
   final parts = value.split('.');
   final intPart = parts[0];
   final sign = intPart.startsWith('-') ? '-' : '';

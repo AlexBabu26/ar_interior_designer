@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-
 import '../../../config/app_config.dart';
 import 'product_model_asset.dart';
 
@@ -13,6 +12,7 @@ class Product {
     required this.categories,
     required this.modelUrl,
     this.isActive = true,
+    this.stockQuantity = 0, // Added stock
     this.models = const <ProductModelAsset>[],
   });
 
@@ -24,23 +24,20 @@ class Product {
   final List<String> categories;
   final String modelUrl;
   final bool isActive;
+  final int stockQuantity; // Added stock
   final List<ProductModelAsset> models;
 
-  ProductModelAsset? get primaryModel {
-    if (models.isEmpty) {
-      return null;
-    }
+  bool get isOutOfStock => stockQuantity <= 0; // Helper
 
+  ProductModelAsset? get primaryModel {
+    if (models.isEmpty) return null;
     return models.firstWhere(
       (model) => model.isPrimary,
       orElse: () => models.first,
     );
   }
 
-  /// Full URL for the 3D model. Resolves relative paths (e.g. /product_assets/models/...) to the app origin or to [productModelsBaseUrl] when set (e.g. Dart Frog in dev).
   String get modelUrlResolved => _resolveModelUrl(modelUrl);
-
-  /// Full URL for images. Resolves relative paths for local files under web/product_assets/.
   String get imageUrlResolved => _resolveUrl(imageUrl);
 
   static String _resolveModelUrl(String url) {
@@ -69,7 +66,9 @@ class Product {
   factory Product.fromJson(Map<String, dynamic> json) {
     final rawModels = (json['product_models'] as List<dynamic>? ?? <dynamic>[])
         .whereType<Map>()
-        .map((item) => ProductModelAsset.fromJson(Map<String, dynamic>.from(item)))
+        .map(
+          (item) => ProductModelAsset.fromJson(Map<String, dynamic>.from(item)),
+        )
         .toList();
 
     final primaryModel = rawModels.cast<ProductModelAsset?>().firstWhere(
@@ -92,6 +91,8 @@ class Product {
           .toList(),
       modelUrl: modelUrl,
       isActive: json['is_active'] as bool? ?? true,
+      stockQuantity: (json['stock_quantity'] as num? ?? 0)
+          .toInt(), // Added stock
       models: rawModels,
     );
   }
@@ -106,6 +107,7 @@ class Product {
       'categories': categories,
       'is_active': isActive,
       'model_url': modelUrl,
+      'stock_quantity': stockQuantity, // Added stock
     };
   }
 
@@ -118,6 +120,7 @@ class Product {
     List<String>? categories,
     String? modelUrl,
     bool? isActive,
+    int? stockQuantity, // Added stock
     List<ProductModelAsset>? models,
   }) {
     return Product(
@@ -129,6 +132,7 @@ class Product {
       categories: categories ?? this.categories,
       modelUrl: modelUrl ?? this.modelUrl,
       isActive: isActive ?? this.isActive,
+      stockQuantity: stockQuantity ?? this.stockQuantity, // Added stock
       models: models ?? this.models,
     );
   }

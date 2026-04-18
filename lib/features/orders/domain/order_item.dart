@@ -6,6 +6,7 @@ class OrderItem {
     required this.unitPrice,
     required this.quantity,
     required this.lineTotal,
+    this.imageUrl,
   });
 
   final String id;
@@ -14,8 +15,15 @@ class OrderItem {
   final double unitPrice;
   final int quantity;
   final double lineTotal;
+  final String? imageUrl;
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
+    String? imgUrl;
+    final productsInfo = json['products'];
+    if (productsInfo is Map) {
+      imgUrl = productsInfo['image_url'] as String?;
+    }
+
     return OrderItem(
       id: json['id'] as String,
       productId: json['product_id'] as String?,
@@ -23,6 +31,7 @@ class OrderItem {
       unitPrice: (json['unit_price'] as num).toDouble(),
       quantity: json['quantity'] as int,
       lineTotal: (json['line_total'] as num).toDouble(),
+      imageUrl: imgUrl,
     );
   }
 }

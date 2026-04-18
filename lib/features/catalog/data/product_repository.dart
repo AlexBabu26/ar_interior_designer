@@ -18,6 +18,16 @@ abstract class ProductRepository {
     required String modelUrl,
     String modelType,
   });
+
+  Future<void> updateStockQuantity(String productId, int quantity);
+
+  Future<List<String>> getCategories();
+
+  Future<void> addCategory(String name);
+
+  Future<void> updateCategory(String oldName, String newName);
+
+  Future<void> deleteCategory(String name);
 }
 
 class SupabaseProductRepository implements ProductRepository {
@@ -93,10 +103,10 @@ class SupabaseProductRepository implements ProductRepository {
     required String modelUrl,
     String modelType = 'glb',
   }) async {
-    await _client.from('product_models').update({'is_primary': false}).eq(
-      'product_id',
-      productId,
-    );
+    await _client
+        .from('product_models')
+        .update({'is_primary': false})
+        .eq('product_id', productId);
 
     final existing = await _client
         .from('product_models')
@@ -119,5 +129,57 @@ class SupabaseProductRepository implements ProductRepository {
       'model_type': modelType,
       'is_primary': true,
     });
+  }
+
+  @override
+  Future<void> updateStockQuantity(String productId, int quantity) async {
+    await _client
+        .from('products')
+        .update({'stock_quantity': quantity})
+        .eq('id', productId);
+  }
+
+  @override
+  Future<List<String>> getCategories() async {
+    final response = await _client
+        .from('product_categories')
+        .select('name')
+        .order('name');
+
+    return (response as List<dynamic>)
+        .map((row) => row['name'] as String)
+        .toList();
+  }
+
+  @override
+  Future<void> addCategory(String name) async {
+    await _client.from('product_categories').upsert({'name': name});
+  }
+
+  @override
+  Future<void> updateCategory(String oldName, String newName) async {
+    // 1. Add/Update the new category in the master list
+    await _client.from('product_categories').upsert({'name': newName});
+
+    // 2. Update all products that use the old name
+    final products = await getAdminProducts();
+    for (final product in products) {
+      if (product.categories.contains(oldName)) {
+        final updatedCategories = product.categories
+            .map((c) => c == oldName ? newName : c)
+            .toList();
+        await saveProduct(product.copyWith(categories: updatedCategories));
+      }
+    }
+
+    // 3. Delete the old category from the master list
+    if (oldName != newName) {
+      await _client.from('product_categories').delete().eq('name', oldName);
+    }
+  }
+
+  @override
+  Future<void> deleteCategory(String name) async {
+    await _client.from('product_categories').delete().eq('name', name);
   }
 }

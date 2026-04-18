@@ -85,7 +85,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'AR Home',
+      title: 'AuraHome',
       theme: AppTheme.light(),
       themeAnimationDuration: Duration.zero,
       routerConfig: _router,

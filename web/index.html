@@ -34,6 +34,21 @@
 
   <!-- Required for model_viewer_plus AR / 3D on web -->
   <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    function openRazorpayCheckout(options, successCallback, errorCallback) {
+      options.handler = function(response) {
+        successCallback(response.razorpay_payment_id);
+      };
+      options.modal = {
+        ondismiss: function() {
+          errorCallback("Payment dismissed");
+        }
+      };
+      var rzp = new Razorpay(options);
+      rzp.open();
+    }
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

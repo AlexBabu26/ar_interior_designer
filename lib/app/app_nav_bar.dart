@@ -13,11 +13,15 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
     this.title,
     this.showBackButton = false,
     this.onBack,
+    this.actions,
+    this.showCart = true,
   });
 
   final String? title;
   final bool showBackButton;
   final VoidCallback? onBack;
+  final List<Widget>? actions;
+  final bool showCart;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -25,17 +29,25 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final effectiveTitle = title ?? 'AR Home';
+    final effectiveTitle = title ?? 'AuraHome';
 
     return AppBar(
       backgroundColor: theme.appBarTheme.backgroundColor ?? AppTheme.parchment,
-      foregroundColor: theme.appBarTheme.foregroundColor ?? AppTheme.richCharcoal,
+      foregroundColor:
+          theme.appBarTheme.foregroundColor ?? AppTheme.richCharcoal,
       elevation: 0,
       centerTitle: false,
       leading: showBackButton
           ? IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
-              onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+              onPressed: onBack ??
+                  () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/');
+                    }
+                  },
               tooltip: 'Back',
             )
           : null,
@@ -44,7 +56,8 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
         onTap: showBackButton ? null : () => context.go('/'),
         child: Text(
           effectiveTitle,
-          style: theme.appBarTheme.titleTextStyle ??
+          style:
+              theme.appBarTheme.titleTextStyle ??
               const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -53,44 +66,45 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       ),
       actions: [
-        const AuthMenuButton(),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.shopping_bag_outlined),
-              onPressed: () => context.go('/cart'),
-              tooltip: 'Cart',
-            ),
-            Consumer<CartProvider>(
-              builder: (context, cart, child) {
-                final count = cart?.itemCount ?? 0;
-                if (count == 0) {
-                  return const SizedBox.shrink();
-                }
-                return Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '$count',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+        if (actions != null) ...actions!,
+        if (showCart)
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.shopping_bag_outlined),
+                onPressed: () => context.push('/cart'),
+                tooltip: 'Cart',
+              ),
+              Consumer<CartProvider>(
+                builder: (context, cart, child) {
+                  final count = cart.itemCount;
+                  if (count == 0) {
+                    return const SizedBox.shrink();
+                  }
+                  return Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$count',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
+                  );
+                },
+              ),
+            ],
+          ),
       ],
     );
   }

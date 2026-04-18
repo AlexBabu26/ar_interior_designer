@@ -50,6 +50,15 @@ class CartProvider with ChangeNotifier {
 
   Future<void> addItem(Product product) async {
     _errorMessage = null;
+
+    final existing = _items[product.id];
+    final currentQty = existing?.quantity ?? 0;
+    if (currentQty + 1 > product.stockQuantity) {
+      _errorMessage = 'Cannot add more than ${product.stockQuantity} items. Not enough stock.';
+      notifyListeners();
+      return;
+    }
+
     if (!isSignedIn || _repository == null) {
       _addLocalItem(product);
       notifyListeners();
@@ -142,7 +151,8 @@ class CartProvider with ChangeNotifier {
 
   Future<void> _syncForAuthState() async {
     final nextUserId = _authProvider?.currentUser?.id;
-    if (nextUserId == _currentUserId && (nextUserId == null || _items.isNotEmpty)) {
+    if (nextUserId == _currentUserId &&
+        (nextUserId == null || _items.isNotEmpty)) {
       return;
     }
 
@@ -188,6 +198,7 @@ class CartProvider with ChangeNotifier {
       return;
     }
 
+    if (existing.quantity + 1 > product.stockQuantity) return;
     _items[product.id] = existing.copyWith(quantity: existing.quantity + 1);
   }
 

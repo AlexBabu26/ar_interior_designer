@@ -10,10 +10,7 @@ import '../domain/furniture_modification.dart';
 import '../domain/furniture_modification_message.dart';
 
 class ModificationChatScreen extends StatefulWidget {
-  const ModificationChatScreen({
-    super.key,
-    required this.modificationId,
-  });
+  const ModificationChatScreen({super.key, required this.modificationId});
 
   final String modificationId;
 
@@ -29,6 +26,7 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
   bool _loading = true;
   String? _error;
   bool _sending = false;
+  String? _carpenterName;
 
   @override
   void initState() {
@@ -52,8 +50,18 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
       final repo = context.read<ModificationRepository>();
       final m = await repo.getModificationWithMessages(widget.modificationId);
       if (!mounted) return;
+
+      // Fetch carpenter display name if one is assigned
+      String? carpenterName;
+      if (m?.assignedCarpenterId != null) {
+        carpenterName = await repo.getCarpenterDisplayName(
+          m!.assignedCarpenterId!,
+        );
+      }
+
       setState(() {
         _modification = m;
+        _carpenterName = carpenterName;
         _loading = false;
       });
       _scrollToBottom();
@@ -95,9 +103,9 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -113,9 +121,9 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to assign: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to assign: $e')));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -131,9 +139,9 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -151,7 +159,6 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
         appBar: AppNavBar(
           title: 'Modification chat',
           showBackButton: true,
-          onBack: () => context.pop(),
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -162,7 +169,6 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
         appBar: AppNavBar(
           title: 'Modification chat',
           showBackButton: true,
-          onBack: () => context.pop(),
         ),
         body: Center(
           child: AppPageWidth(
@@ -177,17 +183,19 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
     }
 
     final mod = _modification!;
-    final canSend = mod.status != 'cancelled' &&
+    final canSend =
+        mod.status != 'cancelled' &&
         (mod.requestedBy == userId ||
             mod.assignedCarpenterId == userId ||
             isAdmin);
     final canAssignCarpenter =
         isCarpenter && mod.assignedCarpenterId == null && mod.status == 'open';
-    final canChangeStatus = (isCarpenter && mod.assignedCarpenterId == userId) ||
-        isAdmin &&
-            mod.status != 'cancelled';
+    final canChangeStatus =
+        (isCarpenter && mod.assignedCarpenterId == userId) ||
+        isAdmin && mod.status != 'cancelled';
 
-    final productName = mod.orderItemProductName ?? mod.orderNumber ?? 'Modification';
+    final productName =
+        mod.orderItemProductName ?? mod.orderNumber ?? 'Modification';
     final customerName = mod.requestedByDisplayName;
     final subtitle = customerName != null
         ? '$productName · $customerName'
@@ -197,7 +205,6 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
       appBar: AppNavBar(
         title: 'Modification chat',
         showBackButton: true,
-        onBack: () => context.pop(),
       ),
       body: Column(
         children: [
@@ -212,11 +219,39 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       _statusChip(mod.status),
+                      if (_carpenterName != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.handyman_outlined,
+                              size: 14,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _carpenterName!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade700,
+                                  ),
+                            ),
+                          ],
+                        )
+                      else if (mod.assignedCarpenterId == null)
+                        Text(
+                          'No carpenter assigned yet',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.grey.shade500),
+                        ),
                       if (canAssignCarpenter) ...[
-                        const SizedBox(width: 8),
                         IconButton.filled(
                           onPressed: _sending ? null : _assignCarpenter,
                           tooltip: 'Accept request',
@@ -226,9 +261,10 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
                             foregroundColor: Colors.white,
                           ),
                         ),
-                        const SizedBox(width: 4),
                         IconButton.filled(
-                          onPressed: _sending ? null : () => _updateStatus('cancelled'),
+                          onPressed: _sending
+                              ? null
+                              : () => _updateStatus('cancelled'),
                           tooltip: 'Decline request',
                           icon: const Icon(Icons.close),
                           style: IconButton.styleFrom(
@@ -236,14 +272,12 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
                             foregroundColor: Colors.white,
                           ),
                         ),
-                        const SizedBox(width: 8),
                         FilledButton.tonal(
                           onPressed: _sending ? null : _assignCarpenter,
                           child: const Text('Take this request'),
                         ),
                       ],
                       if (canChangeStatus && mod.status == 'in_progress') ...[
-                        const SizedBox(width: 8),
                         FilledButton.tonal(
                           onPressed: _sending
                               ? null
@@ -323,26 +357,23 @@ class _ModificationChatScreenState extends State<ModificationChatScreen> {
     final label = status == 'in_progress'
         ? 'In progress'
         : status == 'completed'
-            ? 'Completed'
-            : status == 'cancelled'
-                ? 'Cancelled'
-                : 'Open';
+        ? 'Completed'
+        : status == 'cancelled'
+        ? 'Cancelled'
+        : 'Open';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: status == 'completed'
             ? Colors.green.shade100
             : status == 'in_progress'
-                ? Colors.blue.shade100
-                : status == 'cancelled'
-                    ? Colors.grey.shade200
-                    : Colors.orange.shade100,
+            ? Colors.blue.shade100
+            : status == 'cancelled'
+            ? Colors.grey.shade200
+            : Colors.orange.shade100,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium,
-      ),
+      child: Text(label, style: Theme.of(context).textTheme.labelMedium),
     );
   }
 }
@@ -398,7 +429,9 @@ class _MessageBubble extends StatelessWidget {
               _formatTime(message.createdAt),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: isMe
-                    ? Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.9)
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.onPrimary.withValues(alpha: 0.9)
                     : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),

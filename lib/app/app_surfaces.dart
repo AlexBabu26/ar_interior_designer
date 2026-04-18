@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
@@ -168,6 +169,47 @@ class AppBottomActionBar extends StatelessWidget {
         child: AppPageWidth(
           padding: EdgeInsets.zero,
           child: AppPanel(padding: const EdgeInsets.all(18), child: child),
+        ),
+      ),
+    );
+  }
+}
+
+class AppGlassyPanel extends StatelessWidget {
+  const AppGlassyPanel({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(24),
+  });
+
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(20),
+            blurRadius: 40,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(45),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: Colors.white.withAlpha(80), width: 1.5),
+            ),
+            child: child,
+          ),
         ),
       ),
     );

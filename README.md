@@ -148,7 +148,8 @@ If you use the local API in `server/`:
 ```powershell
 cd server
 dart pub get
-dart_frog dev
+
+
 ```
 
 2. Leave this window open. The server usually runs at **http://localhost:8080**.

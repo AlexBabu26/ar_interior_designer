@@ -19,6 +19,7 @@ declare
   new_order_id uuid;
   subtotal_amount numeric(12,2);
   generated_order_number text;
+  record_var RECORD;
 begin
   select *
   into active_cart
@@ -59,24 +60,39 @@ begin
   )
   returning id into new_order_id;
 
-  insert into public.order_items (
-    order_id,
-    product_id,
-    product_name,
-    unit_price,
-    quantity,
-    line_total
-  )
-  select
-    new_order_id,
-    products.id,
-    products.name,
-    products.price,
-    cart_items.quantity,
-    products.price * cart_items.quantity
-  from public.cart_items
-  join public.products on products.id = cart_items.product_id
-  where cart_items.cart_id = active_cart.id;
+  -- Move items to order_items and REDUCE STOCK
+  FOR record_var IN (
+    SELECT 
+      p.id as p_id, 
+      p.name as p_name, 
+      p.price as p_price, 
+      ci.quantity as ci_qty
+    FROM public.cart_items ci
+    JOIN public.products p ON p.id = ci.product_id
+    WHERE ci.cart_id = active_cart.id
+  ) LOOP
+    INSERT INTO public.order_items (
+      order_id,
+      product_id,
+      product_name,
+      unit_price,
+      quantity,
+      line_total
+    )
+    VALUES (
+      new_order_id,
+      record_var.p_id,
+      record_var.p_name,
+      record_var.p_price,
+      record_var.ci_qty,
+      record_var.p_price * record_var.ci_qty
+    );
+
+    -- Stock reduction
+    UPDATE public.products
+    SET stock_quantity = GREATEST(0, stock_quantity - record_var.ci_qty)
+    WHERE id = record_var.p_id;
+  END LOOP;
 
   update public.carts
   set status = 'checked_out'

@@ -13,7 +13,9 @@ Future<String> saveGeneratedImageToStorage(
 ) async {
   const uuid = Uuid();
   final path = '$userId/${uuid.v4()}.png';
-  await Supabase.instance.client.storage.from(_bucket).uploadBinary(
+  await Supabase.instance.client.storage
+      .from(_bucket)
+      .uploadBinary(
         path,
         Uint8List.fromList(imageBytes),
         fileOptions: const FileOptions(upsert: true),
@@ -28,10 +30,15 @@ String getGeneratedImageUrl(String imagePath) {
 
 /// Uploads an image for AR view background; returns the public URL.
 /// Path: userId/ar_backgrounds/uuid.png (not added to generated_images table).
-Future<String> uploadArBackgroundImage(String userId, List<int> imageBytes) async {
+Future<String> uploadArBackgroundImage(
+  String userId,
+  List<int> imageBytes,
+) async {
   const uuid = Uuid();
   final path = '$userId/ar_backgrounds/${uuid.v4()}.png';
-  await Supabase.instance.client.storage.from(_bucket).uploadBinary(
+  await Supabase.instance.client.storage
+      .from(_bucket)
+      .uploadBinary(
         path,
         Uint8List.fromList(imageBytes),
         fileOptions: const FileOptions(upsert: true),

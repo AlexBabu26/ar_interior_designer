@@ -9,6 +9,8 @@ class Order {
     required this.total,
     required this.createdAt,
     required this.items,
+    this.platform = 'Web Store',
+    this.paymentMethod = 'Online Payment',
   });
 
   final String id;
@@ -18,6 +20,8 @@ class Order {
   final double total;
   final DateTime createdAt;
   final List<OrderItem> items;
+  final String platform;
+  final String paymentMethod;
 
   factory Order.fromJson(Map<String, dynamic> json) {
     final rawItems = (json['order_items'] as List<dynamic>? ?? <dynamic>[])
@@ -33,6 +37,8 @@ class Order {
       total: (json['total'] as num).toDouble(),
       createdAt: DateTime.parse(json['created_at'] as String),
       items: rawItems,
+      platform: json['platform'] as String? ?? 'Web Store',
+      paymentMethod: json['payment_method'] as String? ?? 'Online Payment',
     );
   }
 }

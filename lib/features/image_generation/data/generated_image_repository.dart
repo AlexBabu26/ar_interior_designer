@@ -13,7 +13,7 @@ abstract class GeneratedImageRepository {
 
 class SupabaseGeneratedImageRepository implements GeneratedImageRepository {
   SupabaseGeneratedImageRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
 
@@ -26,7 +26,10 @@ class SupabaseGeneratedImageRepository implements GeneratedImageRepository {
         .order('created_at', ascending: false);
 
     return (response as List<dynamic>)
-        .map((row) => GeneratedImage.fromJson(Map<String, dynamic>.from(row as Map)))
+        .map(
+          (row) =>
+              GeneratedImage.fromJson(Map<String, dynamic>.from(row as Map)),
+        )
         .toList();
   }
 
@@ -36,11 +39,11 @@ class SupabaseGeneratedImageRepository implements GeneratedImageRepository {
     required String prompt,
     required String imagePath,
   }) async {
-    final response = await _client.from('generated_images').insert({
-      'user_id': userId,
-      'prompt': prompt,
-      'image_path': imagePath,
-    }).select().single();
+    final response = await _client
+        .from('generated_images')
+        .insert({'user_id': userId, 'prompt': prompt, 'image_path': imagePath})
+        .select()
+        .single();
 
     return GeneratedImage.fromJson(Map<String, dynamic>.from(response as Map));
   }

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -5,7 +6,16 @@ import 'package:provider/provider.dart';
 import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
+import '../../../app/currency.dart';
+import '../../catalog/data/product_repository.dart';
+import '../../catalog/domain/product.dart';
+import '../../orders/data/order_repository.dart';
+import '../../orders/domain/order.dart';
 import '../application/auth_provider.dart';
+import '../../admin/presentation/admin_inventory_screen.dart';
+import '../../modifications/data/modification_repository.dart';
+import '../../modifications/domain/furniture_modification.dart';
+
 
 class AuthMenuButton extends StatelessWidget {
   const AuthMenuButton({super.key});
@@ -14,86 +24,58 @@ class AuthMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
+    final avatar = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: CircleAvatar(
+        radius: 18,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        child: (() {
+          if (!auth.isAuthenticated) return const Icon(Icons.login);
+          final name = auth.profile?.displayName ?? auth.currentUser?.email ?? '';
+          final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+          return Text(
+            initial,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          );
+        })(),
+      ),
+    );
+
+    if (auth.isAuthenticated) {
+      return InkWell(
+        onTap: () => showAccountModal(context),
+        borderRadius: BorderRadius.circular(20),
+        child: avatar,
+      );
+    }
+
     return PopupMenuButton<_AuthMenuAction>(
-      tooltip: auth.isAuthenticated ? 'Account menu' : 'Sign in',
-      onSelected: (action) async {
-        switch (action) {
-          case _AuthMenuAction.login:
-            context.push('/login');
-            break;
-          case _AuthMenuAction.register:
-            context.push('/register');
-            break;
-          case _AuthMenuAction.account:
-            showAccountModal(context);
-            break;
-          case _AuthMenuAction.generations:
-            context.push('/account/generations');
-            break;
-          case _AuthMenuAction.admin:
-            context.push('/admin');
-            break;
-          case _AuthMenuAction.logout:
-            final didSignOut = await context.read<AuthProvider>().signOut();
-            if (context.mounted) {
-              if (didSignOut) {
-                context.go('/');
-              } else {
-                _showSnackBar(
-                  context,
-                  context.read<AuthProvider>().errorMessage ??
-                      'Unable to sign out right now.',
-                );
-              }
-            }
-            break;
+      tooltip: 'Sign in',
+      onSelected: (action) {
+        if (action == _AuthMenuAction.login) {
+          context.push('/login');
+        } else if (action == _AuthMenuAction.register) {
+          context.push('/register');
         }
       },
       itemBuilder: (context) {
-        if (!auth.isAuthenticated) {
-          return const <PopupMenuEntry<_AuthMenuAction>>[
-            PopupMenuItem(value: _AuthMenuAction.login, child: Text('Login')),
-            PopupMenuItem(
-              value: _AuthMenuAction.register,
-              child: Text('Register'),
-            ),
-          ];
-        }
-
-        return <PopupMenuEntry<_AuthMenuAction>>[
-          const PopupMenuItem(
-            value: _AuthMenuAction.account,
-            child: Text('Account'),
-          ),
-          if (!auth.isCarpenter)
-            const PopupMenuItem(
-              value: _AuthMenuAction.generations,
-              child: Text('Image history'),
-            ),
-          if (auth.isAdmin)
-            const PopupMenuItem(
-              value: _AuthMenuAction.admin,
-              child: Text('Admin'),
-            ),
-          const PopupMenuItem(
-            value: _AuthMenuAction.logout,
-            child: Text('Logout'),
+        return const <PopupMenuEntry<_AuthMenuAction>>[
+          PopupMenuItem(value: _AuthMenuAction.login, child: Text('Login')),
+          PopupMenuItem(
+            value: _AuthMenuAction.register,
+            child: Text('Register'),
           ),
         ];
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: CircleAvatar(
-          radius: 18,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          child: Icon(auth.isAuthenticated ? Icons.person : Icons.login),
-        ),
-      ),
+      child: avatar,
     );
   }
 }
 
-enum _AuthMenuAction { login, register, account, generations, admin, logout }
+enum _AuthMenuAction { login, register, account, generations, admin, carpenter, logout }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.redirectTo, this.message});
@@ -109,6 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -133,7 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (didSignIn) {
-      context.go(_resolvedRedirect(widget.redirectTo, '/account'));
+      context.go(_resolvedRedirect(widget.redirectTo, '/'));
       return;
     }
 
@@ -170,12 +153,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return _AuthScaffold(
       title: 'Welcome back',
-      subtitle:
-          'Sign in to manage purchases, move faster through checkout, and keep your shortlist close at hand.',
+      subtitle: '',
+      hideIntro: true,
       child: Form(
         key: _formKey,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Welcome back',
+              style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sign in to your account to continue.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppTheme.deepUmber,
+                  ),
+            ),
+            const SizedBox(height: 32),
             TextFormField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
@@ -185,8 +183,17 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: AppTheme.deepUmber,
+                  ),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
               validator: (value) =>
                   value == null || value.isEmpty ? 'Enter your password' : null,
             ),
@@ -206,35 +213,72 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
             ],
-            SizedBox(
+            Container(
               width: double.infinity,
-              child: FilledButton(
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppTheme.burntSienna,
+                    AppTheme.burntSienna.withAlpha(200),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.burntSienna.withAlpha(75),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
                 onPressed: auth.isBusy ? null : _submit,
-                child: Text(auth.isBusy ? 'Signing in...' : 'Login'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  auth.isBusy ? 'Signing in...' : 'Login',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => context.push(
-                Uri(
-                  path: '/forgot-password',
-                  queryParameters: _redirectQuery(widget.redirectTo),
-                ).toString(),
+            const SizedBox(height: 16),
+            Center(
+              child: Column(
+                children: [
+                  TextButton(
+                    onPressed: () => context.push(
+                      Uri(
+                        path: '/forgot-password',
+                        queryParameters: _redirectQuery(widget.redirectTo),
+                      ).toString(),
+                    ),
+                    child: const Text('Forgot password?'),
+                  ),
+                  TextButton(
+                    onPressed: () => context.push(
+                      Uri(
+                        path: '/signup',
+                        queryParameters: _redirectQuery(widget.redirectTo),
+                      ).toString(),
+                    ),
+                    child: const Text('Create an account'),
+                  ),
+                  TextButton(
+                    onPressed: auth.isBusy ? null : _resendVerificationEmail,
+                    child: const Text('Resend verification email'),
+                  ),
+                ],
               ),
-              child: const Text('Forgot password?'),
-            ),
-            TextButton(
-              onPressed: () => context.push(
-                Uri(
-                  path: '/register',
-                  queryParameters: _redirectQuery(widget.redirectTo),
-                ).toString(),
-              ),
-              child: const Text('Create an account'),
-            ),
-            TextButton(
-              onPressed: auth.isBusy ? null : _resendVerificationEmail,
-              child: const Text('Resend verification email'),
             ),
           ],
         ),
@@ -264,6 +308,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
@@ -295,10 +341,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    _showMessage(auth.infoMessage ?? 'Account created successfully.');
+    if (!mounted) return;
+
+    // Show success popup
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.parchmentHighlight,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 28),
+            const SizedBox(width: 12),
+            Text(
+              'Success!',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+          ],
+        ),
+        content: Text(
+          auth.infoMessage ?? 'Your account has been successfully created.',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.richCharcoal,
+            ),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
 
     if (auth.isAuthenticated) {
-      context.go(_resolvedRedirect(widget.redirectTo, '/account'));
+      context.go(_resolvedRedirect(widget.redirectTo, '/'));
       return;
     }
 
@@ -316,12 +397,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     return _AuthScaffold(
       title: 'Create your account',
-      subtitle:
-          'Start a customer account for checkout, purchase history, and a calmer furniture shopping flow.',
+      subtitle: '',
+      hideIntro: true,
       child: Form(
         key: _formKey,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Create your account',
+              style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Start your journey with us today.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppTheme.deepUmber,
+                  ),
+            ),
+            const SizedBox(height: 32),
             TextFormField(
               controller: _displayNameController,
               decoration: const InputDecoration(labelText: 'Display name'),
@@ -336,44 +432,89 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
-              validator: (value) {
-                if (value == null || value.length < 6) {
-                  return 'Use at least 6 characters';
-                }
-                return null;
-              },
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: AppTheme.deepUmber,
+                  ),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              validator: (value) => value == null || value.length < 6
+                  ? 'Use at least 6 characters'
+                  : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _confirmPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Confirm password'),
-              validator: (value) {
-                if (value != _passwordController.text) {
-                  return 'Passwords do not match';
-                }
-                return null;
-              },
+              obscureText: _obscureConfirmPassword,
+              decoration: InputDecoration(
+                labelText: 'Confirm password',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                    color: AppTheme.deepUmber,
+                  ),
+                  onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                ),
+              ),
+              validator: (value) => value != _passwordController.text
+                  ? 'Passwords do not match'
+                  : null,
             ),
-            const SizedBox(height: 24),
-            SizedBox(
+            const SizedBox(height: 32),
+            Container(
               width: double.infinity,
-              child: FilledButton(
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppTheme.burntSienna,
+                    AppTheme.burntSienna.withAlpha(200),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.burntSienna.withAlpha(75),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
                 onPressed: auth.isBusy ? null : _submit,
-                child: Text(auth.isBusy ? 'Creating account...' : 'Register'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  auth.isBusy ? 'Creating account...' : 'Register',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => context.go(
-                Uri(
-                  path: '/login',
-                  queryParameters: _redirectQuery(widget.redirectTo),
-                ).toString(),
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: () => context.go(
+                  Uri(
+                    path: '/login',
+                    queryParameters: _redirectQuery(widget.redirectTo),
+                  ).toString(),
+                ),
+                child: const Text('Already have an account? Login'),
               ),
-              child: const Text('Already have an account? Login'),
             ),
           ],
         ),
@@ -443,24 +584,77 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     return _AuthScaffold(
       title: 'Reset your password',
-      subtitle:
-          'Enter your email and we will send reset instructions if the account exists.',
+      subtitle: '',
+      hideIntro: true,
       child: Form(
         key: _formKey,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Reset your password',
+              style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Enter your email to receive recovery instructions.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppTheme.deepUmber,
+                  ),
+            ),
+            const SizedBox(height: 32),
             TextFormField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(labelText: 'Email'),
               validator: _validateEmail,
             ),
-            const SizedBox(height: 24),
-            SizedBox(
+            const SizedBox(height: 32),
+            Container(
               width: double.infinity,
-              child: FilledButton(
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppTheme.burntSienna,
+                    AppTheme.burntSienna.withAlpha(200),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.burntSienna.withAlpha(75),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
                 onPressed: auth.isBusy ? null : _submit,
-                child: Text(auth.isBusy ? 'Sending...' : 'Send reset link'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  auth.isBusy ? 'Sending...' : 'Send reset link',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Back to login'),
               ),
             ),
           ],
@@ -585,48 +779,57 @@ class AccountContent extends StatelessWidget {
     final profile = auth.profile;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppSectionHeader(
-          eyebrow: 'Account',
-          title: 'Account overview',
-          subtitle:
-              'Profile details, order history, and account actions are gathered here in one calm workspace.',
-        ),
-        const SizedBox(height: 24),
-        AppPanel(
-          child: Row(
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: AppTheme.parchment,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: const Icon(Icons.person_outline, size: 32),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      profile?.displayName ?? 'Guest account',
-                      style: Theme.of(context).textTheme.headlineMedium,
+        // ── Profile header ─────────────────────────────────
+        Center(
+          child: AppPanel(
+            child: Row(
+              children: [
+                (() {
+                  final name = profile?.displayName ?? auth.currentUser?.email ?? '';
+                  final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+                  return Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: AppTheme.parchment,
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      auth.currentUser?.email ?? 'Unknown',
-                      style: Theme.of(context).textTheme.bodyLarge,
+                    alignment: Alignment.center,
+                    child: Text(
+                      initial,
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                            color: AppTheme.burntSienna,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
-                  ],
+                  );
+                })(),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        profile?.displayName ?? 'Guest account',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        auth.currentUser?.email ?? 'Unknown',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 18),
+
+        // ── Info tiles ────────────────────────────────────
         _AccountInfoTile(
           icon: Icons.mail_outline,
           label: 'Email',
@@ -644,62 +847,89 @@ class AccountContent extends StatelessWidget {
           label: 'Role',
           value: profile?.role.value ?? 'customer',
         ),
-        const SizedBox(height: 20),
-        if (!auth.isCarpenter) ...[
-          FilledButton.icon(
-            onPressed: () => _navigate(context, '/account/purchases'),
-            icon: const Icon(Icons.receipt_long_outlined),
-            label: const Text('View purchase history'),
-          ),
-          const SizedBox(height: 14),
-          OutlinedButton.icon(
-            onPressed: () => _navigate(context, '/account/generations'),
-            icon: const Icon(Icons.auto_awesome),
-            label: const Text('Image history'),
-          ),
-          const SizedBox(height: 14),
-        ],
-        OutlinedButton.icon(
-          onPressed: () => _navigate(context, '/account/modifications'),
-          icon: const Icon(Icons.chat_bubble_outline),
-          label: Text(
-            auth.isCarpenter
-                ? 'Modification requests'
-                : auth.isAdmin
-                    ? 'View all modification chats'
-                    : 'My modification requests',
+
+        const SizedBox(height: 28),
+
+        // ── Action tiles (centered column) ────────────────
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              children: [
+                if (!auth.isCarpenter && !auth.isAdmin) ...[
+                  _AccountOptionTile(
+                    icon: Icons.receipt_long_outlined,
+                    iconColor: AppTheme.burntSienna,
+                    title: 'Purchase History',
+                    subtitle: 'View all your past orders',
+                    onTap: () => _navigate(context, '/account/purchases'),
+                  ),
+                  const SizedBox(height: 12),
+                  _AccountOptionTile(
+                    icon: Icons.auto_awesome_outlined,
+                    iconColor: const Color(0xFF7B5EA7),
+                    title: 'Image History',
+                    subtitle: 'AI-generated room images',
+                    onTap: () => _navigate(context, '/account/generations'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (!auth.isCarpenter && !auth.isAdmin)
+                  _AccountOptionTile(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    iconColor: const Color(0xFF2E86AB),
+                    title: 'My Modification Requests',
+                    subtitle: 'View and manage room modification chats',
+                    onTap: () => _navigate(context, '/account/modifications'),
+                  ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 14),
-        if (auth.isAdmin) ...[
-          const SizedBox(height: 14),
-          OutlinedButton.icon(
-            onPressed: () => _navigate(context, '/admin'),
-            icon: const Icon(Icons.admin_panel_settings_outlined),
-            label: const Text('Open admin dashboard'),
+
+        const SizedBox(height: 32),
+
+        // ── Logout (centered, red) ─────────────────────────
+        Center(
+          child: SizedBox(
+            width: 200,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                final didSignOut = await context.read<AuthProvider>().signOut();
+                if (context.mounted) {
+                  if (didSignOut) {
+                    onNavigateAway?.call();
+                    final ctx = parentContext ?? context;
+                    if (ctx.mounted) GoRouter.of(ctx).go('/');
+                  } else {
+                    _showSnackBar(
+                      context,
+                      context.read<AuthProvider>().errorMessage ??
+                          'Unable to sign out right now.',
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.logout, color: Colors.red, size: 18),
+              label: const Text(
+                'Logout',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
           ),
-        ],
-        const SizedBox(height: 14),
-        OutlinedButton.icon(
-          onPressed: () async {
-            final didSignOut = await context.read<AuthProvider>().signOut();
-            if (context.mounted) {
-              if (didSignOut) {
-                onNavigateAway?.call();
-                final ctx = parentContext ?? context;
-                if (ctx.mounted) GoRouter.of(ctx).go('/');
-              } else {
-                _showSnackBar(
-                  context,
-                  context.read<AuthProvider>().errorMessage ??
-                      'Unable to sign out right now.',
-                );
-              }
-            }
-          },
-          icon: const Icon(Icons.logout),
-          label: const Text('Logout'),
         ),
+        const SizedBox(height: 40),
       ],
     );
   }
@@ -710,77 +940,492 @@ class AdminDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final adminName = 'Admin';
+    final orderRepo = context.read<OrderRepository>();
+    final productRepo = context.read<ProductRepository>();
+
     return Scaffold(
-      appBar: AppNavBar(
-        title: 'Admin Dashboard',
-        showBackButton: true,
-        onBack: () => context.go('/'),
-      ),
-      body: ListView(
-        children: [
-          AppPageWidth(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppSectionHeader(
-                  eyebrow: 'Admin workspace',
-                  title: 'Control the collection',
-                  subtitle:
-                      'Keep product data accurate and maintain the same premium brand language without losing operational clarity.',
-                ),
-                const SizedBox(height: 24),
-                AppPanel(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.inventory_2_outlined),
-                    title: const Text('Product management'),
-                    subtitle: const Text(
-                      'Create, update, and control which products are active in the storefront.',
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: CustomScrollView(
+        slivers: [
+          // ── Header with greeting + quick stats ──────────
+          SliverToBoxAdapter(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppTheme.burntSienna.withAlpha(140),
+                    border: Border(
+                      bottom: BorderSide(color: Colors.white.withAlpha(60), width: 1),
                     ),
-                    trailing: const Icon(Icons.chevron_right),
+                  ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // back + title row
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => context.go('/'),
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(20),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.arrow_back_rounded,
+                                  color: Colors.white, size: 20),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Text(
+                            'Admin Panel',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(color: Colors.white70),
+                          ),
+                          const Spacer(),
+                          const AuthMenuButton(),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      // greeting
+                      Text(
+                        'Welcome back,',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyLarge
+                            ?.copyWith(color: Colors.white54),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        adminName,
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineLarge
+                            ?.copyWith(color: Colors.white),
+                      ),
+                      const SizedBox(height: 28),
+                      // live stats row
+                      FutureBuilder<({int orders, double revenue, int products})>(
+                        future: Future.wait([
+                          orderRepo.getOrders(),
+                          productRepo.getAdminProducts(),
+                        ]).then((r) {
+                          final orders = r[0] as List<Order>;
+                          final prods = r[1] as List<Product>;
+                          return (
+                            orders: orders.length,
+                            revenue: orders.fold<double>(0, (s, o) => s + o.total),
+                            products: prods.length,
+                          );
+                        }),
+                        builder: (context, snap) {
+                          final loading = snap.connectionState == ConnectionState.waiting;
+                          final orders = snap.data?.orders ?? 0;
+                          final revenue = snap.data?.revenue ?? 0;
+                          final products = snap.data?.products ?? 0;
+                          return Row(
+                            children: [
+                              _StatPill(
+                                label: 'Orders',
+                                value: loading ? '—' : '$orders',
+                                icon: Icons.receipt_long_outlined,
+                              ),
+                              const SizedBox(width: 10),
+                              _StatPill(
+                                label: 'Revenue',
+                                value: loading ? '—' : formatCurrency(revenue),
+                                icon: Icons.attach_money_rounded,
+                              ),
+                              const SizedBox(width: 10),
+                              _StatPill(
+                                label: 'Products',
+                                value: loading ? '—' : '$products',
+                                icon: Icons.inventory_2_outlined,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+
+          // ── Action cards ─────────────────────────────────────
+          SliverToBoxAdapter(
+            child: AppPageWidth(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 28),
+                  Text(
+                    'Manage',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          letterSpacing: 1.8,
+                          color: AppTheme.burntSienna,
+                        ),
+                  ),
+                  const SizedBox(height: 14),
+                  _AdminActionCard(
+                    icon: Icons.inventory_2_rounded,
+                    iconColor: const Color(0xFF6B8F71),
+                    title: 'Product Management',
+                    description:
+                        'Add new furniture, edit details, upload 3D models, and toggle product visibility.',
+                    badge: 'Catalogue',
                     onTap: () => context.push('/admin/products'),
                   ),
-                ),
-                const SizedBox(height: 14),
-                AppPanel(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.bar_chart_rounded),
-                    title: const Text('Analytics dashboard'),
-                    subtitle: const Text(
-                      'View order count, revenue, product count, and recent orders.',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
+                  const SizedBox(height: 14),
+                  _AdminActionCard(
+                    icon: Icons.inventory_rounded,
+                    iconColor: const Color(0xFFE2B45C),
+                    title: 'Stock Management',
+                    description:
+                        'Quickly adjust product quantities, monitor low stock alerts, and manage incoming inventory.',
+                    badge: 'Live Stock',
+                    onTap: () => context.push('/admin/inventory'),
+                  ),
+                  const SizedBox(height: 14),
+                  _AdminActionCard(
+                    icon: Icons.bar_chart_rounded,
+                    iconColor: const Color(0xFF2E86AB),
+                    title: 'Analytics Dashboard',
+                    description:
+                        'Track total orders, revenue trends, and recent transaction activity.',
+                    badge: 'Insights',
                     onTap: () => context.push('/admin/analytics'),
                   ),
-                ),
-                const SizedBox(height: 14),
-                AppPanel(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.person_add_outlined),
-                    title: const Text('Create carpenter account'),
-                    subtitle: const Text(
-                      'Add a new user with the carpenter role so they can sign in.',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.push('/admin/create-carpenter'),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                AppPanel(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.chat_bubble_outline),
-                    title: const Text('Modification chats'),
-                    subtitle: const Text(
-                      'View all customer–carpenter modification threads and chat history.',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
+                  const SizedBox(height: 14),
+                  _AdminActionCard(
+                    icon: Icons.chat_bubble_rounded,
+                    iconColor: const Color(0xFF7B5EA7),
+                    title: 'Modification Chats',
+                    description:
+                        'Oversee all customer–carpenter modification request threads.',
+                    badge: 'Support',
                     onTap: () => context.push('/admin/modifications'),
                   ),
+                  const SizedBox(height: 14),
+                  _AdminActionCard(
+                    icon: Icons.person_add_rounded,
+                    iconColor: AppTheme.burntSienna,
+                    title: 'Create Carpenter Account',
+                    description:
+                        'Register a new carpenter user who can accept and fulfil modification requests.',
+                    badge: 'Users',
+                    onTap: () => context.push('/admin/create-carpenter'),
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Stat pill widget inside the dark header ───────────────────
+class _StatPill extends StatelessWidget {
+  const _StatPill({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withAlpha(25)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: AppTheme.burntSienna, size: 20),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.white54,
+                    fontSize: 11,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Rich action card ──────────────────────────────────────────
+class _AdminActionCard extends StatelessWidget {
+  const _AdminActionCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.description,
+    required this.badge,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String description;
+  final String badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: AppPanel(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // icon box
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: iconColor.withAlpha(24),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ],
+                child: Icon(icon, color: iconColor, size: 26),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: iconColor.withAlpha(20),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            badge,
+                            style: TextStyle(
+                              color: iconColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      description,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.deepUmber,
+                            height: 1.5,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: AppTheme.deepUmber.withAlpha(120),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class CarpenterDashboardScreen extends StatelessWidget {
+  const CarpenterDashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final name = auth.profile?.displayName ?? auth.currentUser?.email ?? 'Carpenter';
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: CustomScrollView(
+        slivers: [
+          // ── Header with greeting ──────────
+          SliverToBoxAdapter(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6B8F71).withAlpha(140),
+                    border: Border(
+                      bottom: BorderSide(color: Colors.white.withAlpha(60), width: 1),
+                    ),
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Carpenter Portal',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(color: Colors.white70),
+                              ),
+                              const Spacer(),
+                              const AuthMenuButton(),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'Welcome back,',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(color: Colors.white54),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineLarge
+                                ?.copyWith(color: Colors.white),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // ── Action cards ─────────────────────────────────────
+          SliverToBoxAdapter(
+            child: AppPageWidth(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 28),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      'Your Workspace',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            letterSpacing: 1.8,
+                            color: const Color(0xFF6B8F71),
+                          ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FutureBuilder<List<FurnitureModification>>(
+                    future: context.read<ModificationRepository>().listModifications(),
+                    builder: (context, snap) {
+                      final list = snap.data ?? [];
+                      final activeCount = list.where((m) {
+                        final isPast = m.status == 'completed' || m.status == 'cancelled';
+                        final isDraft = m.status == 'pending_order';
+                        return !isPast && !isDraft;
+                      }).length;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: _AdminActionCard(
+                          icon: Icons.chat_bubble_rounded,
+                          iconColor: const Color(0xFF7B5EA7),
+                          title: 'Active Requests',
+                          description:
+                              'View and respond to client furniture modification requests and custom orders.',
+                          badge: activeCount > 0 ? '$activeCount Active' : 'Active Tasks',
+                          onTap: () => context.push(
+                            Uri(path: '/account/modifications', queryParameters: {'history': 'false'}).toString(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: _AdminActionCard(
+                      icon: Icons.history_rounded,
+                      iconColor: const Color(0xFF2E86AB),
+                      title: 'Past Requests',
+                      description:
+                          'Review successfully completed or cancelled modification projects.',
+                      badge: 'History',
+                      onTap: () => context.push(
+                        Uri(path: '/account/modifications', queryParameters: {'history': 'true'}).toString(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
         ],
@@ -825,87 +1470,141 @@ class _AuthScaffold extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.child,
+    this.backgroundImage,
+    this.hideIntro = false,
   });
 
   final String title;
   final String subtitle;
   final Widget child;
+  final String? backgroundImage;
+  final bool hideIntro;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Account access')),
-      body: ListView(
+      appBar: AppBar(
+        title: const SizedBox.shrink(),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          color: AppTheme.richCharcoal,
+          tooltip: 'Back',
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/welcome');
+            }
+          },
+        ),
+      ),
+      extendBodyBehindAppBar: true,
+      body: Stack(
         children: [
-          AppPageWidth(
-            maxWidth: 1120,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 860;
-                final introPanel = AppPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ACCOUNT',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppTheme.burntSienna,
-                          letterSpacing: 1.8,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.displayMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        subtitle,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.deepUmber,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const _AuthFeatureRow(
-                        icon: Icons.shopping_bag_outlined,
-                        text: 'Checkout with less friction',
-                      ),
-                      const SizedBox(height: 12),
-                      const _AuthFeatureRow(
-                        icon: Icons.receipt_long_outlined,
-                        text: 'Keep every purchase in one history view',
-                      ),
-                      const SizedBox(height: 12),
-                      const _AuthFeatureRow(
-                        icon: Icons.view_in_ar_outlined,
-                        text: 'Move between catalog, product detail, and AR',
-                      ),
+          if (backgroundImage != null)
+            Positioned.fill(
+              child: Image.asset(backgroundImage!, fit: BoxFit.cover),
+            )
+          else
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppTheme.parchmentHighlight,
+                      AppTheme.parchment,
+                      AppTheme.mutedClay,
                     ],
                   ),
-                );
-
-                final formPanel = AppPanel(child: child);
-
-                if (!isWide) {
-                  return Column(
-                    children: [
-                      introPanel,
-                      const SizedBox(height: 18),
-                      formPanel,
-                    ],
-                  );
-                }
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 6, child: introPanel),
-                    const SizedBox(width: 20),
-                    Expanded(flex: 5, child: formPanel),
-                  ],
-                );
-              },
+                ),
+              ),
             ),
+          ListView(
+            children: [
+              AppPageWidth(
+                maxWidth: 1120,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (hideIntro) {
+                      return Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 580),
+                          child: AppGlassyPanel(child: child),
+                        ),
+                      );
+                    }
+
+                    final isWide = constraints.maxWidth >= 860;
+                    final introPanel = AppGlassyPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ACCOUNT',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppTheme.burntSienna,
+                              letterSpacing: 1.8,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.displayMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            subtitle,
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: AppTheme.deepUmber,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          const _AuthFeatureRow(
+                            icon: Icons.shopping_bag_outlined,
+                            text: 'Checkout with less friction',
+                          ),
+                          const SizedBox(height: 12),
+                          const _AuthFeatureRow(
+                            icon: Icons.receipt_long_outlined,
+                            text: 'Keep every purchase in one history view',
+                          ),
+                          const SizedBox(height: 12),
+                          const _AuthFeatureRow(
+                            icon: Icons.view_in_ar_outlined,
+                            text: 'Move between catalog, product detail, and AR',
+                          ),
+                        ],
+                      ),
+                    );
+
+                    final formPanel = AppGlassyPanel(child: child);
+
+                    if (!isWide) {
+                      return Column(
+                        children: [
+                          introPanel,
+                          const SizedBox(height: 18),
+                          formPanel,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 6, child: introPanel),
+                        const SizedBox(width: 20),
+                        Expanded(flex: 5, child: formPanel),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -932,6 +1631,70 @@ class _AccountInfoTile extends StatelessWidget {
         leading: Icon(icon),
         title: Text(label),
         subtitle: Text(value),
+      ),
+    );
+  }
+}
+
+class _AccountOptionTile extends StatelessWidget {
+  const _AccountOptionTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPanel(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: iconColor.withAlpha(24),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.deepUmber,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: AppTheme.deepUmber.withAlpha(140),
+            ),
+          ],
+        ),
       ),
     );
   }

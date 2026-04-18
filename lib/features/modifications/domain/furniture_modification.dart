@@ -3,8 +3,8 @@ import 'furniture_modification_message.dart';
 class FurnitureModification {
   const FurnitureModification({
     required this.id,
-    required this.orderId,
-    required this.orderItemId,
+    this.orderId,
+    this.orderItemId,
     required this.requestedBy,
     this.assignedCarpenterId,
     required this.status,
@@ -12,13 +12,15 @@ class FurnitureModification {
     required this.updatedAt,
     this.orderNumber,
     this.orderItemProductName,
+    this.orderItemImageUrl,
+    this.productId,
     this.requestedByDisplayName,
     this.messages = const [],
   });
 
   final String id;
-  final String orderId;
-  final String orderItemId;
+  final String? orderId;
+  final String? orderItemId;
   final String requestedBy;
   final String? assignedCarpenterId;
   final String status; // open, in_progress, completed, cancelled
@@ -26,6 +28,9 @@ class FurnitureModification {
   final DateTime updatedAt;
   final String? orderNumber;
   final String? orderItemProductName;
+  final String? orderItemImageUrl;
+  final String? productId;
+
   /// Display name or email of the customer who requested (for carpenter/admin header).
   final String? requestedByDisplayName;
   final List<FurnitureModificationMessage> messages;
@@ -34,28 +39,54 @@ class FurnitureModification {
     final rawMessages =
         (json['furniture_modification_messages'] as List<dynamic>? ?? [])
             .whereType<Map>()
-            .map((m) => FurnitureModificationMessage.fromJson(
-                Map<String, dynamic>.from(m)))
+            .map(
+              (m) => FurnitureModificationMessage.fromJson(
+                Map<String, dynamic>.from(m),
+              ),
+            )
             .toList()
           ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
     final orders = json['orders'] ?? json['order'];
     final orderItems = json['order_items'] ?? json['order_item'];
-    final orderMap = orders is Map ? orders : (orders is List && orders.isNotEmpty ? orders.first : null);
-    final orderItemMap = orderItems is Map ? orderItems : (orderItems is List && orderItems.isNotEmpty ? orderItems.first : null);
+    final orderMap = orders is Map
+        ? orders
+        : (orders is List && orders.isNotEmpty ? orders.first : null);
+    final orderItemMap = orderItems is Map
+        ? orderItems
+        : (orderItems is List && orderItems.isNotEmpty
+              ? orderItems.first
+              : null);
+    final profiles = json['profiles'];
+    final profileMap = profiles is Map
+        ? profiles
+        : (profiles is List && profiles.isNotEmpty ? profiles.first : null);
+
+    String? displayName;
+    if (profileMap is Map) {
+      final name = profileMap['display_name'] as String?;
+      final email = profileMap['email'] as String?;
+      displayName = (name != null && name.trim().isNotEmpty)
+          ? name.trim()
+          : email;
+    }
+
     return FurnitureModification(
       id: json['id'] as String,
-      orderId: json['order_id'] as String,
-      orderItemId: json['order_item_id'] as String,
+      orderId: json['order_id'] as String?,
+      orderItemId: json['order_item_id'] as String?,
       requestedBy: json['requested_by'] as String,
       assignedCarpenterId: json['assigned_carpenter_id'] as String?,
       status: json['status'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       orderNumber: orderMap is Map ? orderMap['order_number'] as String? : null,
-      orderItemProductName:
-          orderItemMap is Map ? orderItemMap['product_name'] as String? : null,
-      requestedByDisplayName: null,
+      orderItemProductName: orderItemMap is Map
+          ? orderItemMap['product_name'] as String?
+          : null,
+      orderItemImageUrl: null,
+      productId: (orderItemMap is Map ? orderItemMap['product_id'] as String? : null) ?? json['product_id'] as String?,
+      requestedByDisplayName: displayName,
       messages: rawMessages,
     );
   }
@@ -71,6 +102,8 @@ class FurnitureModification {
     DateTime? updatedAt,
     String? orderNumber,
     String? orderItemProductName,
+    String? orderItemImageUrl,
+    String? productId,
     String? requestedByDisplayName,
     List<FurnitureModificationMessage>? messages,
   }) {
@@ -84,8 +117,9 @@ class FurnitureModification {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       orderNumber: orderNumber ?? this.orderNumber,
-      orderItemProductName:
-          orderItemProductName ?? this.orderItemProductName,
+      orderItemProductName: orderItemProductName ?? this.orderItemProductName,
+      orderItemImageUrl: orderItemImageUrl ?? this.orderItemImageUrl,
+      productId: productId ?? this.productId,
       requestedByDisplayName:
           requestedByDisplayName ?? this.requestedByDisplayName,
       messages: messages ?? this.messages,

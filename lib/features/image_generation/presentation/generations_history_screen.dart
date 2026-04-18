@@ -77,10 +77,14 @@ class GenerationsHistoryScreen extends StatelessWidget {
 
           return LayoutBuilder(
             builder: (context, constraints) {
-              final crossAxisCount =
-                  constraints.maxWidth > 700 ? 3 : (constraints.maxWidth > 400 ? 2 : 1);
+              final crossAxisCount = constraints.maxWidth > 700
+                  ? 3
+                  : (constraints.maxWidth > 400 ? 2 : 1);
               return GridView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
                   mainAxisSpacing: 20,
@@ -118,46 +122,46 @@ class _HistoryCard extends StatelessWidget {
           Expanded(
             flex: 4,
             child: Image.network(
-                getGeneratedImageUrl(item.imagePath),
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    color: AppTheme.mutedClay.withValues(alpha: 0.15),
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: AppTheme.mutedClay.withValues(alpha: 0.2),
+              getGeneratedImageUrl(item.imagePath),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Container(
+                  color: AppTheme.mutedClay.withValues(alpha: 0.15),
                   child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.broken_image_outlined,
-                          size: 40,
-                          color: AppTheme.deepUmber.withValues(alpha: 0.6),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Image unavailable',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                          : null,
                     ),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) => Container(
+                color: AppTheme.mutedClay.withValues(alpha: 0.2),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.broken_image_outlined,
+                        size: 40,
+                        color: AppTheme.deepUmber.withValues(alpha: 0.6),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Image unavailable',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
             child: Column(

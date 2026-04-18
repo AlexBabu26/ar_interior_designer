@@ -72,8 +72,7 @@ Future<Response> onRequest(RequestContext context) async {
     );
   }
 
-  final authHeader =
-      context.request.headers['authorization'] ??
+  final authHeader = context.request.headers['authorization'] ??
       context.request.headers['Authorization'];
   if (authHeader == null ||
       authHeader.isEmpty ||
@@ -91,7 +90,8 @@ Future<Response> onRequest(RequestContext context) async {
   if (supabaseUrl.isEmpty || serviceRoleKey.isEmpty) {
     return Response(
       statusCode: 500,
-      body: jsonEncode({'error': 'Server not configured for admin user creation'}),
+      body: jsonEncode(
+          {'error': 'Server not configured for admin user creation'}),
       headers: {'Content-Type': 'application/json', ..._corsHeaders},
     );
   }
@@ -190,9 +190,8 @@ Future<Response> onRequest(RequestContext context) async {
     String message = 'Failed to create user';
     try {
       final errJson = jsonDecode(errBody) as Map<String, dynamic>;
-      message = errJson['msg'] as String? ??
-          errJson['message'] as String? ??
-          errBody;
+      message =
+          errJson['msg'] as String? ?? errJson['message'] as String? ?? errBody;
     } catch (_) {}
     return Response(
       statusCode: createRes.statusCode,
@@ -222,7 +221,8 @@ Future<Response> onRequest(RequestContext context) async {
     },
     body: jsonEncode({
       'role': 'carpenter',
-      if (displayName != null && displayName.isNotEmpty) 'display_name': displayName,
+      if (displayName != null && displayName.isNotEmpty)
+        'display_name': displayName,
     }),
   );
 

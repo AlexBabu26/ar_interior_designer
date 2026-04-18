@@ -4,10 +4,7 @@ import 'package:http/http.dart' as http;
 
 /// Result of an NVIDIA NIM image generation request.
 class NimImageResult {
-  const NimImageResult({
-    this.imageBytes,
-    this.error,
-  });
+  const NimImageResult({this.imageBytes, this.error});
 
   final List<int>? imageBytes;
   final String? error;
@@ -15,41 +12,7 @@ class NimImageResult {
   bool get isSuccess => error == null && imageBytes != null;
 }
 
-/// Detect image MIME subtype from magic bytes.
-String _imageSubtype(List<int> bytes) {
-  if (bytes.length >= 3 &&
-      bytes[0] == 0xFF &&
-      bytes[1] == 0xD8 &&
-      bytes[2] == 0xFF) {
-    return 'jpeg';
-  }
-  if (bytes.length >= 4 &&
-      bytes[0] == 0x89 &&
-      bytes[1] == 0x50 &&
-      bytes[2] == 0x4E &&
-      bytes[3] == 0x47) {
-    return 'png';
-  }
-  if (bytes.length >= 12 &&
-      bytes[0] == 0x52 &&
-      bytes[1] == 0x49 &&
-      bytes[2] == 0x46 &&
-      bytes[3] == 0x46 &&
-      bytes[8] == 0x57 &&
-      bytes[9] == 0x45 &&
-      bytes[10] == 0x42 &&
-      bytes[11] == 0x50) {
-    return 'webp';
-  }
-  return 'png';
-}
 
-/// Converts raw image bytes into a `data:image/…;base64,…` URI that the
-/// NVIDIA NIM API accepts in the `image` array field.
-String _toDataUri(List<int> bytes) {
-  final subtype = _imageSubtype(bytes);
-  return 'data:image/$subtype;base64,${base64Encode(bytes)}';
-}
 
 /// Calls the NVIDIA NIM Visual Models API (Flux 2 Klein) to generate an image.
 /// See: https://docs.api.nvidia.com/nim/reference/visual-models-apis
@@ -92,7 +55,6 @@ class NvidiaNimImageRepository {
       apiKey: apiKey,
       prompt: prompt,
       proxyUrl: proxyUrl,
-      imageDataUris: images.map(_toDataUri).toList(),
     );
   }
 
@@ -102,7 +64,6 @@ class NvidiaNimImageRepository {
     required String apiKey,
     required String prompt,
     String? proxyUrl,
-    List<String>? imageDataUris,
   }) async {
     if (apiKey.trim().isEmpty) {
       return const NimImageResult(
@@ -110,22 +71,22 @@ class NvidiaNimImageRepository {
       );
     }
     if (prompt.trim().isEmpty) {
-      return const NimImageResult(
-        error: 'Please enter a text prompt.',
-      );
+      return const NimImageResult(error: 'Please enter a text prompt.');
     }
 
     final url = Uri.parse(
       proxyUrl?.trim().isNotEmpty == true ? proxyUrl!.trim() : baseUrl,
     );
+    const width = 1024;
+    const height = 1024;
+    const steps = 4;
+    const seed = 0;
     final body = <String, dynamic>{
       'prompt': prompt.trim(),
       'width': 1024,
       'height': 1024,
       'steps': 4,
       'seed': 0,
-      if (imageDataUris != null && imageDataUris.isNotEmpty)
-        'image': imageDataUris,
     };
 
     try {
@@ -141,9 +102,25 @@ class NvidiaNimImageRepository {
 
       if (response.statusCode != 200) {
         final decoded = _tryDecode(response.body) as Map<String, dynamic>?;
-        final message = decoded?['detail'] as String? ??
-            decoded?['message'] as String? ??
-            'API error: ${response.statusCode}';
+        String message = 'API error: ${response.statusCode}';
+        if (decoded != null) {
+          if (decoded['detail'] is String) {
+            message = decoded['detail'] as String;
+          } else if (decoded['detail'] is List) {
+            final details = decoded['detail'] as List;
+            if (details.isNotEmpty && details.first is Map) {
+               message = details.first['msg']?.toString() ?? details.toString();
+            } else {
+               message = details.toString();
+            }
+          } else if (decoded['message'] is String) {
+            message = decoded['message'] as String;
+          } else {
+            message = response.body;
+          }
+        } else {
+           message = response.body;
+        }
         return NimImageResult(error: message);
       }
 
@@ -154,9 +131,7 @@ class NvidiaNimImageRepository {
 
       final artifacts = decoded['artifacts'] as List<dynamic>?;
       if (artifacts == null || artifacts.isEmpty) {
-        return const NimImageResult(
-          error: 'No image returned from the model.',
-        );
+        return const NimImageResult(error: 'No image returned from the model.');
       }
 
       final first = artifacts.first as Map<String, dynamic>?;

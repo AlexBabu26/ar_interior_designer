@@ -51,7 +51,8 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
   ARObjectManager? _arObjectManager;
   ARAnchorManager? _arAnchorManager;
 
-  _PlacedObject? _placedObject;
+  final List<_PlacedObject> _placedObjects = [];
+  String? _selectedNodeName;
 
   bool _isPlacingProduct = false;
   Product? _pendingProduct;
@@ -130,8 +131,9 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
       return;
     }
 
-    // Remove existing object before placing the new one.
-    await _removeCurrentObject();
+    // If we wanted single-object, we'd clear here. 
+    // For multi-object, we just add to the collection.
+    // await _removeCurrentObject();
 
     final hit = planeHit.first;
     final newAnchor = ARPlaneAnchor(transformation: hit.worldTransform);
@@ -157,12 +159,15 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
 
     if (didAddNode == true) {
       setState(() {
-        _placedObject = _PlacedObject(
-          node: newNode,
-          anchor: newAnchor,
-          product: _pendingProduct!,
-          scale: _pendingScale,
+        _placedObjects.add(
+          _PlacedObject(
+            node: newNode,
+            anchor: newAnchor,
+            product: _pendingProduct!,
+            scale: _pendingScale,
+          ),
         );
+        _selectedNodeName = newNode.name; // Select the new object
         _isPlacingProduct = false;
         _pendingProduct = null;
       });
@@ -195,27 +200,26 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
   }
 
   Future<void> _removeCurrentObject() async {
-    final obj = _placedObject;
+    final obj = _selectedObject;
     if (obj == null) return;
     _arObjectManager?.removeNode(obj.node);
     _arAnchorManager?.removeAnchor(obj.anchor);
     setState(() {
-      _placedObject = null;
+      _placedObjects.remove(obj);
+      _selectedNodeName = null;
     });
   }
 
   bool _isScaling = false;
 
   Future<void> _scaleObject(double newScale) async {
-    final obj = _placedObject;
+    final obj = _selectedObject;
     if (obj == null || _isScaling) return;
     _isScaling = true;
 
     try {
       final oldNode = obj.node;
       await _arObjectManager!.removeNode(oldNode);
-      // Give ARCore time to finish removing the old model from the scene
-      // before adding the replacement, otherwise both overlap visually.
       await Future.delayed(const Duration(milliseconds: 350));
 
       final replacement = ARNode(
@@ -235,24 +239,46 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
         setState(() {
           obj.node = replacement;
           obj.scale = newScale;
+          _selectedNodeName = replacement.name;
         });
       } else {
         await _arObjectManager!.addNode(
-          oldNode,
+          obj.node,
           planeAnchor: obj.anchor as ARPlaneAnchor,
         );
         _showSnack('Could not rescale the model.');
       }
+    } catch (e) {
+      _showSnack('Error scaling: $e');
     } finally {
       _isScaling = false;
     }
   }
 
+  Future<void> _clearAll() async {
+    for (final obj in _placedObjects) {
+      _arObjectManager?.removeNode(obj.node);
+      _arAnchorManager?.removeAnchor(obj.anchor);
+    }
+    setState(() {
+      _placedObjects.clear();
+      _selectedNodeName = null;
+    });
+  }
+
   void _showSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  _PlacedObject? get _selectedObject {
+    if (_selectedNodeName == null) return null;
+    final idx = _placedObjects.indexWhere(
+      (o) => o.node.name == _selectedNodeName,
     );
+    return idx == -1 ? null : _placedObjects[idx];
   }
 
   void _showProductPicker() {
@@ -285,7 +311,13 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/');
+            }
+          },
         ),
         title: const Text('AR Scene'),
       ),
@@ -297,6 +329,15 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
                 'The interactive AR scene requires an Android device with ARCore support.',
             icon: Icons.view_in_ar_outlined,
           ),
+        ),
+      ),
+      floatingActionButton: Tooltip(
+        message: 'Modification chat',
+        child: FloatingActionButton(
+          onPressed: () => context.push('/account/modifications'),
+          backgroundColor: AppTheme.burntSienna,
+          foregroundColor: Colors.white,
+          child: const Icon(Icons.chat_bubble_outline_rounded),
         ),
       ),
     );
@@ -313,7 +354,7 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
           _buildTopBar(context),
           if (_isPlacingProduct && _pendingProduct != null)
             _buildPlacementBanner(context),
-          if (_placedObject != null && !_isPlacingProduct)
+          if (_selectedObject != null && !_isPlacingProduct)
             _buildObjectToolbar(context),
           _buildBottomControls(context),
           if (kDebugMode) _buildDebugBanner(context),
@@ -335,25 +376,69 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
             children: [
               _circleButton(
                 icon: Icons.arrow_back_rounded,
-                onTap: () => context.pop(),
+                onTap: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/');
+                  }
+                },
                 tooltip: 'Back',
               ),
               const SizedBox(width: 12),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.richCharcoal.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'AR Scene',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(color: Colors.white),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: Colors.white),
                 ),
               ),
+              const Spacer(),
+              if (_placedObjects.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.richCharcoal.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.chair_outlined,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${_placedObjects.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (_placedObjects.isNotEmpty) const SizedBox(width: 8),
+              if (_placedObjects.isNotEmpty)
+                _circleButton(
+                  icon: Icons.delete_sweep_outlined,
+                  onTap: _clearAll,
+                  tooltip: 'Clear all',
+                ),
             ],
           ),
         ),
@@ -378,14 +463,19 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.touch_app_rounded,
-                    color: Colors.white, size: 20),
+                const Icon(
+                  Icons.touch_app_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Tap a surface to place ${_pendingProduct!.name}',
                     style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w500),
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -396,8 +486,11 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
                 const SizedBox(width: 8),
                 GestureDetector(
                   onTap: _cancelPlacement,
-                  child: const Icon(Icons.close_rounded,
-                      color: Colors.white, size: 22),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
               ],
             ),
@@ -408,7 +501,7 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
   }
 
   Widget _buildObjectToolbar(BuildContext context) {
-    final obj = _placedObject!;
+    final obj = _selectedObject!;
 
     return Positioned(
       bottom: 100,
@@ -428,8 +521,10 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
               children: [
                 Icon(Icons.open_with_rounded, color: Colors.white54, size: 14),
                 SizedBox(width: 6),
-                Text('Drag to move · Two fingers to rotate',
-                    style: TextStyle(color: Colors.white54, fontSize: 11)),
+                Text(
+                  'Drag to move · Two fingers to rotate',
+                  style: TextStyle(color: Colors.white54, fontSize: 11),
+                ),
               ],
             ),
           ),
@@ -498,7 +593,7 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
   }
 
   Widget _buildBottomControls(BuildContext context) {
-    final hasObject = _placedObject != null;
+    final hasObject = _selectedObject != null;
 
     return Positioned(
       bottom: 0,
@@ -520,12 +615,40 @@ class _ARSceneScreenState extends State<ARSceneScreen> {
                       : Icons.add_rounded),
                   label: Text(hasObject ? 'Change Furniture' : 'Add Furniture'),
                   style: FilledButton.styleFrom(
-                    backgroundColor:
-                        AppTheme.richCharcoal.withValues(alpha: 0.85),
+                    backgroundColor: AppTheme.richCharcoal.withValues(
+                      alpha: 0.85,
+                    ),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Tooltip(
+                message: 'Modification chat',
+                child: GestureDetector(
+                  onTap: () => context.push('/account/modifications'),
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: AppTheme.burntSienna.withValues(alpha: 0.88),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.burntSienna.withValues(alpha: 0.35),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      color: Colors.white,
+                      size: 22,
                     ),
                   ),
                 ),
@@ -691,8 +814,7 @@ class _ProductPickerSheet extends StatelessWidget {
         return Container(
           decoration: BoxDecoration(
             color: Theme.of(context).scaffoldBackgroundColor,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
@@ -722,8 +844,9 @@ class _ProductPickerSheet extends StatelessWidget {
                     }
                     if (snapshot.hasError) {
                       return Center(
-                        child:
-                            Text('Error loading products: ${snapshot.error}'),
+                        child: Text(
+                          'Error loading products: ${snapshot.error}',
+                        ),
                       );
                     }
                     final products = (snapshot.data ?? [])
@@ -747,7 +870,9 @@ class _ProductPickerSheet extends StatelessWidget {
                     return ListView.separated(
                       controller: scrollController,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       itemCount: products.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
@@ -770,10 +895,7 @@ class _ProductPickerSheet extends StatelessWidget {
 }
 
 class _ProductPickerTile extends StatelessWidget {
-  const _ProductPickerTile({
-    required this.product,
-    required this.onTap,
-  });
+  const _ProductPickerTile({required this.product, required this.onTap});
 
   final Product product;
   final VoidCallback onTap;
@@ -814,16 +936,17 @@ class _ProductPickerTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       formatCurrency(product.price),
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: AppTheme.burntSienna),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.burntSienna,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.add_circle_outline_rounded,
-                  color: AppTheme.deepUmber),
+              const Icon(
+                Icons.add_circle_outline_rounded,
+                color: AppTheme.deepUmber,
+              ),
             ],
           ),
         ),

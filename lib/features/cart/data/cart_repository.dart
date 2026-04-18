@@ -95,10 +95,10 @@ class SupabaseCartRepository implements CartRepository {
     final existingItem = Map<String, dynamic>.from(existing as Map);
     final currentQuantity = existingItem['quantity'] as int;
     if (currentQuantity <= 1) {
-      await _client.from('cart_items').delete().eq(
-        'id',
-        existingItem['id'] as String,
-      );
+      await _client
+          .from('cart_items')
+          .delete()
+          .eq('id', existingItem['id'] as String);
       return;
     }
 

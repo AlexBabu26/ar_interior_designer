@@ -50,7 +50,8 @@ Future<Response> onRequest(RequestContext context) async {
       return Response(
         statusCode: 400,
         body: jsonEncode({
-          'error': 'Invalid file type. Allowed: ${_allowedExtensions.join(", ")}',
+          'error':
+              'Invalid file type. Allowed: ${_allowedExtensions.join(", ")}',
         }),
         headers: {'Content-Type': 'application/json', ..._corsHeaders},
       );

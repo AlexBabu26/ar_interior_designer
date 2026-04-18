@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +8,8 @@ import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/currency.dart';
+import '../../catalog/data/product_repository.dart';
+import '../../catalog/domain/product.dart';
 import '../../modifications/data/modification_repository.dart';
 import '../data/order_repository.dart';
 import '../domain/order.dart';
@@ -22,7 +26,6 @@ class PurchaseHistoryScreen extends StatelessWidget {
       appBar: AppNavBar(
         title: 'Purchase History',
         showBackButton: true,
-        onBack: () => context.pop(),
       ),
       body: FutureBuilder<List<Order>>(
         future: repository.getOrders(),
@@ -58,6 +61,7 @@ class PurchaseHistoryScreen extends StatelessWidget {
           }
 
           return ListView(
+            padding: const EdgeInsets.only(bottom: 40),
             children: [
               AppPageWidth(
                 child: Column(
@@ -74,6 +78,7 @@ class PurchaseHistoryScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // ── Order header ──────────────────────────
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -117,6 +122,7 @@ class PurchaseHistoryScreen extends StatelessWidget {
                               ],
                             ),
                             const SizedBox(height: 18),
+                            // ── Order items ───────────────────────────
                             for (final item in order.items) ...[
                               _OrderItemRow(
                                 orderId: order.id,
@@ -197,7 +203,9 @@ class _OrderItemRowState extends State<_OrderItemRow> {
     setState(() => _loading = true);
     try {
       final repo = context.read<ModificationRepository>();
-      var modificationId = await repo.getModificationIdByOrderItemId(widget.item.id);
+      var modificationId = await repo.getModificationIdByOrderItemId(
+        widget.item.id,
+      );
       if (modificationId == null) {
         final created = await repo.createModification(
           orderId: widget.orderId,
@@ -209,9 +217,9 @@ class _OrderItemRowState extends State<_OrderItemRow> {
       context.push('/account/modifications/$modificationId');
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to open chat: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to open chat: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -220,46 +228,139 @@ class _OrderItemRowState extends State<_OrderItemRow> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    final productRepo = context.read<ProductRepository>();
+
+    return FutureBuilder<Product?>(
+      future: item.productId != null
+          ? productRepo.getProductById(item.productId!)
+          : Future.value(null),
+      builder: (context, snap) {
+        final product = snap.data;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.productName,
-                    style: Theme.of(context).textTheme.titleMedium,
+            // ── Image + info row ──────────────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Product image on the left
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: product?.imageUrlResolved != null
+                      ? Image.network(
+                          product!.imageUrlResolved,
+                          width: 86,
+                          height: 86,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _ImagePlaceholder(),
+                        )
+                      : _ImagePlaceholder(),
+                ),
+                const SizedBox(width: 16),
+                // Product name + qty + price
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.productName,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Qty: ${item.quantity}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.deepUmber,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        formatCurrency(item.lineTotal),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.secondary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Qty: ${item.quantity}',
-                    style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Glassy chat button ────────────────────────────
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: InkWell(
+                  onTap: _loading ? null : _openModificationChat,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.burntSienna.withAlpha(18),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppTheme.burntSienna.withAlpha(60),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_loading)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else
+                          Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            size: 16,
+                            color: AppTheme.burntSienna,
+                          ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Request modification / Open chat',
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: AppTheme.burntSienna,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
-            Text(
-              formatCurrency(item.lineTotal),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
           ],
-        ),
-        const SizedBox(height: 8),
-        TextButton.icon(
-          onPressed: _loading ? null : _openModificationChat,
-          icon: _loading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.chat_bubble_outline, size: 18),
-          label: const Text('Request modification / Open chat'),
-        ),
-      ],
+        );
+      },
+    );
+  }
+}
+
+class _ImagePlaceholder extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 86,
+      height: 86,
+      decoration: BoxDecoration(
+        color: AppTheme.parchment,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Icon(
+        Icons.image_outlined,
+        color: AppTheme.mutedClay,
+        size: 28,
+      ),
     );
   }
 }

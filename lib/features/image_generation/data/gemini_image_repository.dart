@@ -4,11 +4,7 @@ import 'package:http/http.dart' as http;
 
 /// Result of a Gemini image generation request.
 class GeminiImageResult {
-  const GeminiImageResult({
-    this.imageBytes,
-    this.text,
-    this.error,
-  });
+  const GeminiImageResult({this.imageBytes, this.text, this.error});
 
   final List<int>? imageBytes;
   final String? text;
@@ -43,9 +39,7 @@ class GeminiImageRepository {
       );
     }
     if (prompt.trim().isEmpty) {
-      return const GeminiImageResult(
-        error: 'Please enter a text prompt.',
-      );
+      return const GeminiImageResult(error: 'Please enter a text prompt.');
     }
 
     // Using gemini-2.5-flash with generateContent and responseModalities
@@ -54,9 +48,9 @@ class GeminiImageRepository {
       'contents': [
         {
           'parts': [
-            {'text': prompt.trim()}
-          ]
-        }
+            {'text': prompt.trim()},
+          ],
+        },
       ],
       'generationConfig': {
         'responseModalities': ['TEXT', 'IMAGE'],
@@ -74,9 +68,9 @@ class GeminiImageRepository {
       );
 
       if (response.statusCode != 200) {
-        final decoded =
-            _tryDecode(response.body) as Map<String, dynamic>?;
-        final message = decoded?['error']?['message'] as String? ??
+        final decoded = _tryDecode(response.body) as Map<String, dynamic>?;
+        final message =
+            decoded?['error']?['message'] as String? ??
             'API error: ${response.statusCode}';
         return GeminiImageResult(error: message);
       }
@@ -88,12 +82,11 @@ class GeminiImageRepository {
 
       final candidates = decoded['candidates'] as List<dynamic>?;
       if (candidates == null || candidates.isEmpty) {
-        final promptFeedback = decoded['promptFeedback'] as Map<String, dynamic>?;
+        final promptFeedback =
+            decoded['promptFeedback'] as Map<String, dynamic>?;
         final blockReason = promptFeedback?['blockReason'] as String?;
         if (blockReason != null) {
-          return GeminiImageResult(
-            error: 'Content was blocked: $blockReason',
-          );
+          return GeminiImageResult(error: 'Content was blocked: $blockReason');
         }
         return const GeminiImageResult(
           error: 'No response from the model. Try a different prompt.',
@@ -103,9 +96,7 @@ class GeminiImageRepository {
       final content = candidates.first as Map<String, dynamic>?;
       final parts = content?['content']?['parts'] as List<dynamic>?;
       if (parts == null || parts.isEmpty) {
-        return const GeminiImageResult(
-          error: 'Empty response from the model.',
-        );
+        return const GeminiImageResult(error: 'Empty response from the model.');
       }
 
       List<int>? imageBytes;
@@ -144,9 +135,7 @@ class GeminiImageRepository {
         error: 'Model did not return an image. Try a different prompt.',
       );
     } catch (e) {
-      return GeminiImageResult(
-        error: 'Request failed: $e',
-      );
+      return GeminiImageResult(error: 'Request failed: $e');
     }
   }
 

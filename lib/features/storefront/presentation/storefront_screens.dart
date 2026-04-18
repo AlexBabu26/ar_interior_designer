@@ -1,9 +1,11 @@
 import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'razorpay_web_stub.dart' if (dart.library.js) 'razorpay_web_impl.dart';
 import 'package:file_picker/file_picker.dart';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 import 'package:provider/provider.dart';
 
@@ -17,11 +19,12 @@ import '../../catalog/domain/product.dart';
 import '../../auth/application/auth_provider.dart';
 import '../../image_generation/data/generated_image_repository.dart';
 import '../../image_generation/data/generated_image_storage.dart';
-import '../../image_generation/domain/generated_image.dart';
 import '../data/ar_background_image_picker_stub.dart'
     if (dart.library.html) '../data/ar_background_image_picker_web.dart'
     as ar_bg_picker;
-import '../../image_generation/data/nvidia_nim_image_repository.dart';
+import '../../image_generation/domain/generated_image.dart';
+import '../../modifications/data/modification_repository.dart';
+import '../../modifications/domain/furniture_modification.dart';
 import '../../orders/data/order_repository.dart';
 
 class CatalogScreen extends StatefulWidget {
@@ -37,11 +40,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final repository = context.read<ProductRepository>();
-    final generatedImageRepository =
-        context.read<GeneratedImageRepository>();
 
     return Scaffold(
-      appBar: const AppNavBar(),
+      appBar: const AppNavBar(title: 'Shop'),
       body: FutureBuilder<List<Product>>(
         future: repository.getProducts(),
         builder: (context, snapshot) {
@@ -77,94 +78,90 @@ class _CatalogScreenState extends State<CatalogScreen> {
                           product.categories.contains(selectedCategory),
                     )
                     .toList();
-          final heroProduct = filteredProducts.isNotEmpty
-              ? filteredProducts.first
-              : (products.isNotEmpty ? products.first : null);
 
           return CustomScrollView(
             slivers: [
+              // ── Category filter bar ──────────────────────────────────
               SliverToBoxAdapter(
-                child: AppPageWidth(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _CatalogHero(product: heroProduct),
-                      const SizedBox(height: 28),
-                      _GenerateImageSection(
-                        generatedImageRepository: generatedImageRepository,
-                      ),
-                      const SizedBox(height: 28),
-                      AppSectionHeader(
-                        eyebrow: 'Curated collection',
-                        title: 'Explore signature pieces',
-                        subtitle:
-                            'Browse refined silhouettes by category and move from discovery to AR preview without losing the calm, showroom feel.',
-                      ),
-                      const SizedBox(height: 18),
-                      SizedBox(
-                        height: 48,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: categories.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 10),
-                          itemBuilder: (context, index) {
-                            return ChoiceChip(
-                              label: Text(categories[index]),
-                              selected: selectedCategory == categories[index],
-                              onSelected: (_) {
-                                setState(
-                                  () => selectedCategory = categories[index],
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      if (filteredProducts.isEmpty)
-                        const AppMessagePanel(
-                          title: 'No pieces in this collection yet',
-                          message:
-                              'Try another category to explore the current assortment.',
-                          icon: Icons.search_off_rounded,
-                        )
-                      else
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final width = constraints.maxWidth;
-                            final crossAxisCount = width >= 1040
-                                ? 3
-                                : width >= 680
-                                ? 2
-                                : 1;
-
-                            return GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: crossAxisCount,
-                                    mainAxisSpacing: 24,
-                                    crossAxisSpacing: 24,
-                                    childAspectRatio: crossAxisCount == 1
-                                        ? 0.82
-                                        : 0.76,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: SizedBox(
+                    height: 40,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: categories.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final cat = categories[index];
+                        final selected = selectedCategory == cat;
+                        return GestureDetector(
+                          onTap: () => setState(() => selectedCategory = cat),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? AppTheme.burntSienna
+                                  : AppTheme.parchment,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              cat,
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: selected
+                                        ? Colors.white
+                                        : AppTheme.richCharcoal,
+                                    fontWeight: selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
                                   ),
-                              itemCount: filteredProducts.length,
-                              itemBuilder: (context, index) {
-                                return ProductCard(
-                                  product: filteredProducts[index],
-                                );
-                              },
-                            );
-                          },
-                        ),
-                    ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: 40)),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 14)),
+
+              // ── Product grid ─────────────────────────────────────────
+              if (filteredProducts.isEmpty)
+                const SliverFillRemaining(
+                  child: Center(
+                    child: AppMessagePanel(
+                      title: 'No pieces in this collection yet',
+                      message:
+                          'Try another category to explore the current assortment.',
+                      icon: Icons.search_off_rounded,
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  sliver: SliverGrid(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) =>
+                          ProductCard(product: filteredProducts[index]),
+                      childCount: filteredProducts.length,
+                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.64,
+                        ),
+                  ),
+                ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           );
         },
@@ -180,243 +177,148 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.go('/product/${product.id}'),
+    return GestureDetector(
+      onTap: () => context.push('/catalog/product/${product.id}'),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(12),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Product image — fills all available space ──────────
             Expanded(
-              flex: 3,
-              child: Hero(
-                tag: 'product-${product.id}',
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.mutedClay.withValues(alpha: 0.2),
-                    image: DecorationImage(
-                      image: NetworkImage(product.imageUrlResolved),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(14),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      product.imageUrlResolved,
                       fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: AppTheme.mutedClay.withValues(alpha: 0.2),
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: AppTheme.deepUmber,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (product.isOutOfStock)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withAlpha(180),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'OUT OF STOCK',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _categorySummary(product),
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppTheme.burntSienna,
-                        letterSpacing: 1.4,
+
+            // ── Product info — fixed height, never overflows ────────
+            SizedBox(
+              height: 108,
+              child: ClipRect(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Category + name
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _categorySummary(product).toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.burntSienna,
+                              letterSpacing: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            product.name,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Flexible(
-                      child: Text(
-                        product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        Text(
-                          formatCurrency(product.price),
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.secondary,
+                      // Price + Add button
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            formatCurrency(product.price),
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: product.isOutOfStock
+                                  ? AppTheme.mutedClay.withValues(alpha: 0.4)
+                                  : AppTheme.burntSienna,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              product.isOutOfStock ? 'Sold' : 'Add',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
                               ),
-                        ),
-                        const Spacer(),
-                        const Icon(Icons.arrow_outward_rounded, size: 18),
-                      ],
-                    ),
-                  ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _GenerateImageSection extends StatefulWidget {
-  const _GenerateImageSection({
-    required this.generatedImageRepository,
-  });
-
-  final GeneratedImageRepository generatedImageRepository;
-
-  @override
-  State<_GenerateImageSection> createState() => _GenerateImageSectionState();
-}
-
-class _GenerateImageSectionState extends State<_GenerateImageSection> {
-  final _promptController = TextEditingController();
-  final _repository = NvidiaNimImageRepository();
-
-  static const _apiKey =
-      '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';
-  static const _proxyUrl = 'http://localhost:8080/generate_image';
-
-  bool _isLoading = false;
-  bool _isSaving = false;
-  Uint8List? _imageBytes;
-  String? _error;
-
-  @override
-  void dispose() {
-    _promptController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _generate() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-      _imageBytes = null;
-    });
-    final result = await _repository.generateImage(
-      apiKey: _apiKey,
-      prompt: _promptController.text,
-      proxyUrl: _proxyUrl,
-    );
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      _imageBytes = result.imageBytes != null
-          ? Uint8List.fromList(result.imageBytes!)
-          : null;
-      _error = result.error;
-    });
-  }
-
-  Future<void> _save() async {
-    final userId = context.read<AuthProvider>().currentUser?.id;
-    if (userId == null || _imageBytes == null || _imageBytes!.isEmpty) return;
-
-    final prompt = _promptController.text.trim();
-    if (prompt.isEmpty) return;
-
-    setState(() => _isSaving = true);
-    try {
-      final imagePath = await saveGeneratedImageToStorage(
-        userId,
-        _imageBytes!,
-      );
-      await widget.generatedImageRepository.insert(
-            userId: userId,
-            prompt: prompt,
-            imagePath: imagePath,
-          );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Image saved to your history')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-
-    return AppPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppSectionHeader(
-            eyebrow: 'AI',
-            title: 'Generate image from prompt',
-            subtitle: 'Describe the image you want. Sign in to generate and save.',
-          ),
-          if (!auth.isAuthenticated) ...[
-            const SizedBox(height: 20),
-            AppMessagePanel(
-              title: 'Sign in to generate images',
-              message: 'Generate and save images are available when you sign in.',
-              icon: Icons.login,
-              action: TextButton.icon(
-                onPressed: () => context.push('/login'),
-                icon: const Icon(Icons.login, size: 20),
-                label: const Text('Sign in'),
-              ),
-            ),
-          ] else ...[
-            const SizedBox(height: 20),
-            TextField(
-              controller: _promptController,
-              decoration: const InputDecoration(
-                labelText: 'Prompt',
-                hintText: 'e.g. A cozy living room',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _isLoading ? null : _generate,
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_awesome, size: 20),
-              label: Text(_isLoading ? 'Generating…' : 'Generate image'),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              AppMessagePanel(
-                title: 'Generation failed',
-                message: _error!,
-                icon: Icons.error_outline_rounded,
-              ),
-            ],
-            if (_imageBytes != null && _imageBytes!.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 400),
-                  child: Image.memory(
-                    _imageBytes!,
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _isSaving ? null : _save,
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined, size: 20),
-                label: Text(_isSaving ? 'Saving…' : 'Save to my history'),
-              ),
-            ],
-          ],
-        ],
       ),
     );
   }
@@ -432,11 +334,7 @@ class ProductDetailScreen extends StatelessWidget {
     final repository = context.read<ProductRepository>();
 
     return Scaffold(
-      appBar: AppNavBar(
-        title: 'Product details',
-        showBackButton: true,
-        onBack: () => context.pop(),
-      ),
+      appBar: AppNavBar(title: 'Product details', showBackButton: true),
       body: FutureBuilder<Product?>(
         future: repository.getProductById(productId),
         builder: (context, snapshot) {
@@ -482,8 +380,7 @@ class ProductDetailScreen extends StatelessWidget {
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 image: DecorationImage(
-                                  image:
-                                      NetworkImage(product.imageUrlResolved),
+                                  image: NetworkImage(product.imageUrlResolved),
                                   fit: BoxFit.cover,
                                 ),
                               ),
@@ -498,9 +395,7 @@ class ProductDetailScreen extends StatelessWidget {
                           children: [
                             Text(
                               _categorySummary(product).toUpperCase(),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
+                              style: Theme.of(context).textTheme.labelSmall
                                   ?.copyWith(
                                     color: AppTheme.burntSienna,
                                     letterSpacing: 1.8,
@@ -509,28 +404,23 @@ class ProductDetailScreen extends StatelessWidget {
                             const SizedBox(height: 12),
                             Text(
                               product.name,
-                              style:
-                                  Theme.of(context).textTheme.displayMedium,
+                              style: Theme.of(context).textTheme.displayMedium,
                             ),
                             const SizedBox(height: 12),
                             Text(
                               formatCurrency(product.price),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
+                              style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .secondary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.secondary,
                                     fontSize: 24,
                                   ),
                             ),
                             const SizedBox(height: 20),
                             Text(
                               product.description,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge
+                              style: Theme.of(context).textTheme.bodyLarge
                                   ?.copyWith(color: AppTheme.deepUmber),
                             ),
                             const SizedBox(height: 24),
@@ -539,8 +429,7 @@ class ProductDetailScreen extends StatelessWidget {
                               runSpacing: 10,
                               children: product.categories
                                   .map(
-                                    (category) =>
-                                        Chip(label: Text(category)),
+                                    (category) => Chip(label: Text(category)),
                                   )
                                   .toList(),
                             ),
@@ -554,9 +443,9 @@ class ProductDetailScreen extends StatelessWidget {
                                   Expanded(
                                     child: Text(
                                       'Explore finishes up close, then move directly into AR placement when you are ready.',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
                                     ),
                                   ),
                                 ],
@@ -568,34 +457,50 @@ class ProductDetailScreen extends StatelessWidget {
                                 Expanded(
                                   child: FilledButton.icon(
                                     onPressed: () =>
-                                        context.go('/ar/${product.id}'),
-                                    icon: const Icon(
-                                      Icons.view_in_ar_outlined,
+                                        context.push('/ar/${product.id}'),
+                                    icon: const Icon(Icons.view_in_ar_outlined),
+                                    label: const Text(
+                                      'View in AR',
+                                      style: TextStyle(fontSize: 12),
                                     ),
-                                    label: const Text('View in AR'),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: OutlinedButton.icon(
-                                    onPressed: () async {
-                                      await context
-                                          .read<CartProvider>()
-                                          .addItem(product);
-                                      if (!context.mounted) return;
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            '${product.name} added to your bag.',
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                    onPressed: product.isOutOfStock
+                                        ? null
+                                        : () async {
+                                            await context
+                                                .read<CartProvider>()
+                                                .addItem(product);
+                                            if (!context.mounted) {
+                                              return;
+                                            }
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  '${product.name} added to your bag.',
+                                                ),
+                                                action: SnackBarAction(
+                                                  label: 'View Bag',
+                                                  onPressed: () =>
+                                                      context.push('/cart'),
+                                                ),
+                                              ),
+                                            );
+                                          },
                                     icon: const Icon(
                                       Icons.shopping_bag_outlined,
                                     ),
-                                    label: const Text('Add to bag'),
+                                    label: Text(
+                                      product.isOutOfStock
+                                          ? 'Sold out'
+                                          : 'Add to bag',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -605,13 +510,16 @@ class ProductDetailScreen extends StatelessWidget {
                               SizedBox(
                                 width: double.infinity,
                                 child: FilledButton.icon(
-                                  onPressed: () => context.go(
+                                  onPressed: () => context.push(
                                     '/ar-scene?product=${product.id}',
                                   ),
                                   icon: const Icon(
                                     Icons.space_dashboard_outlined,
                                   ),
-                                  label: const Text('Add to AR Scene'),
+                                  label: const Text(
+                                    'Add to AR Scene',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: AppTheme.burntSienna,
                                   ),
@@ -621,13 +529,22 @@ class ProductDetailScreen extends StatelessWidget {
                             const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: () => context.go(
-                                  '/staging?product=${product.id}',
+                              child: FilledButton.icon(
+                                onPressed: () async {
+                                  final cart = context.read<CartProvider>();
+                                  await cart.addItem(product);
+                                  if (context.mounted) {
+                                    context.push('/cart');
+                                  }
+                                },
+                                icon: const Icon(Icons.flash_on_rounded),
+                                label: const Text(
+                                  'Buy Now',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                                icon:
-                                    const Icon(Icons.photo_filter_outlined),
-                                label: const Text('Stage in Room'),
                               ),
                             ),
                           ],
@@ -653,12 +570,6 @@ class ProductDetailScreen extends StatelessWidget {
                         ],
                       );
                     },
-                  ),
-                  const SizedBox(height: 24),
-                  _AiSceneGeneratorSection(
-                    product: product,
-                    generatedImageRepository:
-                        context.read<GeneratedImageRepository>(),
                   ),
                   const SizedBox(height: 40),
                 ],
@@ -695,6 +606,8 @@ class ARViewScreen extends StatefulWidget {
 
 class _ARViewScreenState extends State<ARViewScreen> {
   int _selectedBackgroundIndex = 0;
+  bool _isMenuCollapsed = false;
+
   /// When using Image background, URL for skybox (upload or from generated images).
   String? _arBackgroundImageUrl;
 
@@ -724,7 +637,9 @@ class _ARViewScreenState extends State<ARViewScreen> {
     if (!auth.isAuthenticated || auth.currentUser == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sign in to upload an image as background')),
+        const SnackBar(
+          content: Text('Sign in to upload an image as background'),
+        ),
       );
       return;
     }
@@ -736,12 +651,15 @@ class _ARViewScreenState extends State<ARViewScreen> {
         picked.bytes,
       );
       if (!mounted) return;
-      setState(() => _arBackgroundImageUrl = url);
+      setState(() {
+        _arBackgroundImageUrl = url;
+        _isMenuCollapsed = true;
+      });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
     }
   }
 
@@ -761,7 +679,10 @@ class _ARViewScreenState extends State<ARViewScreen> {
       builder: (ctx) => _ArGeneratedImagesSheet(
         userId: auth.currentUser!.id,
         onSelect: (url) {
-          setState(() => _arBackgroundImageUrl = url);
+          setState(() {
+            _arBackgroundImageUrl = url;
+            _isMenuCollapsed = true;
+          });
           Navigator.of(ctx).pop();
         },
       ),
@@ -813,16 +734,19 @@ class _ARViewScreenState extends State<ARViewScreen> {
     final selectedBg = _arBackgroundOptions[_selectedBackgroundIndex];
     final useImageBackground =
         _selectedBackgroundIndex == _arImageBackgroundIndex &&
-            _arBackgroundImageUrl != null && _arBackgroundImageUrl!.isNotEmpty;
+        _arBackgroundImageUrl != null &&
+        _arBackgroundImageUrl!.isNotEmpty;
 
     return Stack(
       children: [
+        if (useImageBackground)
+          Positioned.fill(
+            child: Image.network(_arBackgroundImageUrl!, fit: BoxFit.cover),
+          ),
         ModelViewer(
-          backgroundColor: selectedBg.color,
-          skyboxImage: useImageBackground ? _arBackgroundImageUrl : null,
-          fieldOfView: useImageBackground ? '90deg' : null,
-          maxFieldOfView: useImageBackground ? '120deg' : null,
-          minFieldOfView: useImageBackground ? '25deg' : null,
+          backgroundColor: useImageBackground
+              ? Colors.transparent
+              : selectedBg.color,
           src: modelSrc,
           alt: 'A 3D model of ${currentProduct.name}',
           ar: true,
@@ -831,126 +755,154 @@ class _ARViewScreenState extends State<ARViewScreen> {
           cameraControls: true,
           disableZoom: false,
         ),
-        Positioned(
-          top: 24,
-          left: 20,
-          right: 20,
-          child: AppPageWidth(
-            padding: EdgeInsets.zero,
-            child: AppPanel(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.wb_incandescent_outlined),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Move around the room, then use your device AR support to place the piece at full scale.',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Text(
-                        'Background: ',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme.onSurface
-                                  .withValues(alpha: 0.8),
-                            ),
-                      ),
-                      Expanded(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: List.generate(
-                            _arBackgroundOptions.length,
-                            (index) {
-                              final option = _arBackgroundOptions[index];
-                              final isSelected = index == _selectedBackgroundIndex;
-                              final isImageOption = index == _arImageBackgroundIndex;
-                              return Tooltip(
-                                message: option.label,
-                                child: GestureDetector(
-                                  onTap: () => setState(
-                                    () => _selectedBackgroundIndex = index,
-                                  ),
-                                  child: Container(
-                                    width: 28,
-                                    height: 28,
-                                    decoration: BoxDecoration(
-                                      color: option.color,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? Theme.of(context)
-                                                .colorScheme.primary
-                                            : option.color == AppTheme.richCharcoal
-                                                ? Colors.white24
-                                                : Colors.black12,
-                                        width: isSelected ? 2.5 : 1,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.15),
-                                          blurRadius: 2,
-                                          offset: const Offset(0, 1),
-                                        ),
-                                      ],
-                                    ),
-                                    child: isImageOption
-                                        ? Icon(
-                                            Icons.image_outlined,
-                                            size: 16,
-                                            color: index == _arImageBackgroundIndex
-                                                ? Colors.white
-                                                : Colors.black87,
-                                          )
-                                        : null,
+        if (_isMenuCollapsed)
+          Positioned(
+            top: 24,
+            right: 20,
+            child: IconButton.filledTonal(
+              onPressed: () => setState(() => _isMenuCollapsed = false),
+              icon: const Icon(Icons.tune),
+              tooltip: 'Background Settings',
+            ),
+          )
+        else
+          Positioned(
+            top: 24,
+            left: 20,
+            right: 20,
+            child: AppPageWidth(
+              padding: EdgeInsets.zero,
+              child: AppPanel(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!useImageBackground)
+                          const Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.wb_incandescent_outlined),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Move around the room, then use your device AR support to place the piece at full scale.',
                                   ),
                                 ),
-                              );
-                            },
+                              ],
+                            ),
+                          )
+                        else
+                          const Spacer(),
+                        InkWell(
+                          onTap: () => setState(() => _isMenuCollapsed = true),
+                          child: const Padding(
+                            padding: EdgeInsets.only(left: 8.0, bottom: 8.0),
+                            child: Icon(Icons.close, size: 20),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  if (_selectedBackgroundIndex == _arImageBackgroundIndex) ...[
-                    const SizedBox(height: 12),
-                    if (useImageBackground)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          'Tip: The view is widened so more of the background shows. Pinch or scroll to zoom in/out on the object.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme.onSurface
-                                    .withValues(alpha: 0.7),
-                                fontStyle: FontStyle.italic,
+                      ],
+                    ),
+                    if (!useImageBackground) const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Text(
+                          'Background: ',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withValues(alpha: 0.8),
                               ),
                         ),
-                      ),
-                    _ArImageBackgroundOptions(
-                      currentImageUrl: _arBackgroundImageUrl,
-                      isLoggedIn: context.read<AuthProvider>().isAuthenticated,
-                      onUploadNew: _pickAndUploadArBackground,
-                      onChooseFromSaved: _showGeneratedImagesSheet,
-                      onClear: () => setState(() => _arBackgroundImageUrl = null),
+                        Expanded(
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: List.generate(
+                              _arBackgroundOptions.length,
+                              (index) {
+                                final option = _arBackgroundOptions[index];
+                                final isSelected =
+                                    index == _selectedBackgroundIndex;
+                                final isImageOption =
+                                    index == _arImageBackgroundIndex;
+                                return Tooltip(
+                                  message: option.label,
+                                  child: GestureDetector(
+                                    onTap: () => setState(
+                                      () => _selectedBackgroundIndex = index,
+                                    ),
+                                    child: Container(
+                                      width: 28,
+                                      height: 28,
+                                      decoration: BoxDecoration(
+                                        color: option.color,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? Theme.of(
+                                                  context,
+                                                ).colorScheme.primary
+                                              : option.color ==
+                                                    AppTheme.richCharcoal
+                                              ? Colors.white24
+                                              : Colors.black12,
+                                          width: isSelected ? 2.5 : 1,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.15,
+                                            ),
+                                            blurRadius: 2,
+                                            offset: const Offset(0, 1),
+                                          ),
+                                        ],
+                                      ),
+                                      child: isImageOption
+                                          ? Icon(
+                                              Icons.image_outlined,
+                                              size: 16,
+                                              color:
+                                                  index ==
+                                                      _arImageBackgroundIndex
+                                                  ? Colors.white
+                                                  : Colors.black87,
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    if (_selectedBackgroundIndex ==
+                        _arImageBackgroundIndex) ...[
+                      const SizedBox(height: 12),
+                      _ArImageBackgroundOptions(
+                        currentImageUrl: _arBackgroundImageUrl,
+                        isLoggedIn: context
+                            .read<AuthProvider>()
+                            .isAuthenticated,
+                        onUploadNew: _pickAndUploadArBackground,
+                        onChooseFromSaved: _showGeneratedImagesSheet,
+                        onClear: () =>
+                            setState(() => _arBackgroundImageUrl = null),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
-        ),
         Positioned(
           bottom: 24,
           left: 20,
@@ -1024,9 +976,9 @@ class CartScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppNavBar(
-        title: 'Your Shopping Bag',
+        title: 'Product Summary',
         showBackButton: true,
-        onBack: () => context.pop(),
+        showCart: false,
       ),
       body: cart.items.isEmpty
           ? Center(
@@ -1044,87 +996,364 @@ class CartScreen extends StatelessWidget {
               ),
             )
           : ListView(
+              padding: const EdgeInsets.only(bottom: 24),
               children: [
                 AppPageWidth(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      AppSectionHeader(
-                        eyebrow: 'Ready to purchase',
-                        title: 'A considered shortlist',
-                        subtitle:
-                            'Review quantities, refine the mix, and continue to checkout when the room feels complete.',
+                      const SizedBox(height: 8),
+
+                      // ── Delivery Address ──────────────────────────────
+                      _SectionLabel(label: 'Delivery Address'),
+                      const SizedBox(height: 12),
+                      AppPanel(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.burntSienna.withAlpha(20),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.location_on_outlined,
+                                color: AppTheme.burntSienna,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Home Delivery',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Add your delivery address at checkout.',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(color: AppTheme.deepUmber),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: AppTheme.deepUmber.withAlpha(120),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 24),
-                      for (final item in cart.items) ...[
-                        _CartItemPanel(item: item),
-                        const SizedBox(height: 16),
-                      ],
+
+                      const SizedBox(height: 28),
+
+                      // ── Cart Items + per-item Modification Chat ────────
+                      _SectionLabel(
+                        label:
+                            '${cart.itemCount} Item${cart.itemCount == 1 ? '' : 's'} in your bag',
+                      ),
+                      const SizedBox(height: 12),
+                      _CartItemsWithModifications(items: cart.items),
+
+                      // ── Order Summary ─────────────────────────────────
+                      _SectionLabel(label: 'Order Summary'),
+                      const SizedBox(height: 12),
+                      AppPanel(
+                        child: Column(
+                          children: [
+                            for (final item in cart.items) ...[
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      item.product.name,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'x${item.quantity}',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(color: AppTheme.deepUmber),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    formatCurrency(
+                                      item.product.price * item.quantity,
+                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                              if (item != cart.items.last) ...[
+                                const SizedBox(height: 10),
+                                const Divider(height: 1),
+                                const SizedBox(height: 10),
+                              ],
+                            ],
+                            const Divider(height: 24),
+                            Row(
+                              children: [
+                                Text(
+                                  'Products',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                const Spacer(),
+                                Text(
+                                  formatCurrency(cart.totalAmount),
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Text(
+                                  'Shipping',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(color: AppTheme.deepUmber),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  'Calculated at checkout',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: AppTheme.deepUmber),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 24),
+                            Row(
+                              children: [
+                                Text(
+                                  'Total incl. GST',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  formatCurrency(cart.totalAmount),
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.secondary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 52,
+                              child: FilledButton(
+                                onPressed: () => context.push('/cart/checkout'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppTheme.burntSienna,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Proceed to Checkout',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
-      bottomNavigationBar: cart.items.isEmpty
-          ? null
-          : AppBottomActionBar(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Total',
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${cart.itemCount} item${cart.itemCount == 1 ? '' : 's'} selected',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                      Text(
-                        formatCurrency(cart.totalAmount),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () => context.go('/cart/checkout'),
-                      child: const Text('Checkout'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
     );
   }
 }
 
-class CheckoutScreen extends StatelessWidget {
+// ── Modification Chat Banner ──────────────────────────────────────────────────
+class _CartItemsWithModifications extends StatelessWidget {
+  const _CartItemsWithModifications({required this.items});
+  final List<dynamic> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final item in items) ...[
+          _CartItemPanel(item: item),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+}
+
+// ── Order Summary ─────────────────────────────────────────────────────────────
+
+// ── Order Summary ─────────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: AppTheme.richCharcoal,
+      ),
+    );
+  }
+}
+
+class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
+
+  @override
+  State<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends State<CheckoutScreen> {
+  String? _selectedPayment; // 'upi' | 'card' | 'cod'
+  late Razorpay _razorpay;
+
+  @override
+  void initState() {
+    super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    _placeOrder();
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Payment failed: ${response.message ?? "Unknown error"}'),
+        backgroundColor: AppTheme.burntSienna,
+      ),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('External wallet: ${response.walletName}')),
+    );
+  }
+
+  Future<void> _placeOrder() async {
+    final cart = context.read<CartProvider>();
+    final orderRepository = context.read<OrderRepository>();
+
+    try {
+      final orderId = await orderRepository.checkoutActiveCart();
+      await cart.refresh();
+      if (!mounted) return;
+      context.go('/cart/success/$orderId');
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString();
+      String userMessage = 'Unable to place order. Please try again.';
+
+      if (message.contains('stock') || message.contains('left')) {
+        userMessage =
+            'Some items in your bag are no longer available in the requested quantity.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(userMessage),
+          backgroundColor: AppTheme.burntSienna,
+        ),
+      );
+    }
+  }
+
+  void _startRazorpayPayment() {
+    final cart = context.read<CartProvider>();
+    // Razorpay expects amount in subunits (paise for INR)
+    final amountInPaise = (cart.totalAmount * 100).toInt();
+
+    final options = {
+      'key':
+          'rzp_test_SbQicCgSXNsW5K', // USER: Replace with your actual Test Key from Razorpay Dashboard
+      'amount': amountInPaise,
+      'name': 'AR Interior Designer',
+      'description': 'Modern Furniture Collection',
+      'retry': {'enabled': true, 'max_count': 1},
+      'send_sms_hash': true,
+      'prefill': {'contact': '9876543210', 'email': 'customer@example.com'},
+      'external': {
+        'wallets': ['paytm'],
+      },
+    };
+
+    if (kIsWeb) {
+      openRazorpayWeb(
+        options,
+        (paymentId) {
+          _handlePaymentSuccess(
+            PaymentSuccessResponse(paymentId, null, null, null),
+          );
+        },
+        (error) {
+          debugPrint('Razorpay Web Error: $error');
+          _handlePaymentError(PaymentFailureResponse(0, error, null));
+        },
+      );
+    } else {
+      try {
+        _razorpay.open(options);
+      } catch (e) {
+        debugPrint('Razorpay Error: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
-    final orderRepository = context.read<OrderRepository>();
 
     if (cart.items.isEmpty) {
       return Scaffold(
         appBar: AppNavBar(
           title: 'Checkout',
           showBackButton: true,
-          onBack: () => context.pop(),
+          onBack: () => context.go('/cart'),
+          showCart: false,
         ),
         body: Center(
           child: AppPageWidth(
@@ -1147,314 +1376,251 @@ class CheckoutScreen extends StatelessWidget {
       appBar: AppNavBar(
         title: 'Checkout',
         showBackButton: true,
-        onBack: () => context.pop(),
+        onBack: () => context.go('/cart'),
+        showCart: false,
       ),
       body: ListView(
+        padding: const EdgeInsets.only(bottom: 24),
         children: [
           AppPageWidth(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppSectionHeader(
-                  eyebrow: 'Order summary',
-                  title: 'One final review before delivery',
-                  subtitle:
-                      'Confirm the pieces, quantities, and total before placing the order. Your completed purchases will appear in your history.',
-                ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
+
+                // ── Order Summary ─────────────────────────────────────
+                _SectionLabel(label: 'Order Summary'),
+                const SizedBox(height: 12),
                 AppPanel(
                   child: Column(
                     children: [
                       for (final item in cart.items) ...[
                         _CheckoutLineItem(item: item),
-                        if (item != cart.items.last) const Divider(height: 32),
+                        if (item != cart.items.last) const Divider(height: 28),
                       ],
+                      const Divider(height: 28),
+                      Row(
+                        children: [
+                          Text(
+                            'Subtotal',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const Spacer(),
+                          Text(
+                            formatCurrency(cart.totalAmount),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Text(
+                            'Shipping',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: AppTheme.deepUmber),
+                          ),
+                          const Spacer(),
+                          Text(
+                            'Calculated at delivery',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: AppTheme.deepUmber),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      Row(
+                        children: [
+                          Text(
+                            'Total incl. GST',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const Spacer(),
+                          Text(
+                            formatCurrency(cart.totalAmount),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.secondary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
+
+                const SizedBox(height: 28),
+
+                // ── Payment Method ────────────────────────────────────
+                _SectionLabel(label: 'Payment Method'),
+                const SizedBox(height: 12),
                 AppPanel(
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Estimated total',
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Taxes and shipping are not modelled yet in this prototype.',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
+                      _PaymentOption(
+                        value: 'upi',
+                        groupValue: _selectedPayment,
+                        icon: Icons.currency_rupee_rounded,
+                        title: 'UPI',
+                        subtitle: 'Pay via Google Pay, PhonePe, Paytm, etc.',
+                        onChanged: (v) => setState(() => _selectedPayment = v),
                       ),
-                      Text(
-                        formatCurrency(cart.totalAmount),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
+                      const Divider(height: 24),
+                      _PaymentOption(
+                        value: 'card',
+                        groupValue: _selectedPayment,
+                        icon: Icons.credit_card_rounded,
+                        title: 'Credit / Debit Card',
+                        subtitle: 'Visa, Mastercard, Rupay, and more.',
+                        onChanged: (v) => setState(() => _selectedPayment = v),
+                      ),
+                      const Divider(height: 24),
+                      _PaymentOption(
+                        value: 'cod',
+                        groupValue: _selectedPayment,
+                        icon: Icons.local_shipping_outlined,
+                        title: 'Cash on Delivery',
+                        subtitle: 'Pay in cash when your order arrives.',
+                        onChanged: (v) => setState(() => _selectedPayment = v),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 120),
+
+                const SizedBox(height: 28),
+
+                // ── Place Order Button ────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: FilledButton(
+                    onPressed: (_selectedPayment == null || cart.isBusy)
+                        ? null
+                        : () {
+                            if (_selectedPayment == 'cod') {
+                              _placeOrder();
+                            } else {
+                              _startRazorpayPayment();
+                            }
+                          },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _selectedPayment != null
+                          ? AppTheme.burntSienna
+                          : AppTheme.mutedClay,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      cart.isBusy
+                          ? 'Placing order...'
+                          : _selectedPayment == null
+                          ? 'Select a payment method'
+                          : (_selectedPayment == 'cod'
+                                ? 'Place Order'
+                                : 'Pay with Razorpay'),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
         ],
       ),
-      bottomNavigationBar: AppBottomActionBar(
-        child: SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: cart.isBusy
-                ? null
-                : () async {
-                    try {
-                      await orderRepository.checkoutActiveCart();
-                      await cart.refresh();
-                      if (!context.mounted) {
-                        return;
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Checkout complete. Your order is now in purchase history.',
-                          ),
-                        ),
-                      );
-                      context.go('/account/purchases');
-                    } catch (error) {
-                      if (!context.mounted) {
-                        return;
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Unable to complete checkout: $error'),
-                        ),
-                      );
-                    }
-                  },
-            child: Text(cart.isBusy ? 'Placing order...' : 'Place order'),
-          ),
-        ),
-      ),
     );
   }
 }
 
-class _CatalogHero extends StatelessWidget {
-  const _CatalogHero({required this.product});
+class _PaymentOption extends StatelessWidget {
+  const _PaymentOption({
+    required this.value,
+    required this.groupValue,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onChanged,
+  });
 
-  final Product? product;
+  final String value;
+  final String? groupValue;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return AppPanel(
-      padding: const EdgeInsets.all(20),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 860;
-          final content = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'EDITORIAL LIVING',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppTheme.burntSienna,
-                  letterSpacing: 2,
-                ),
+    final isSelected = value == groupValue;
+    return GestureDetector(
+      onTap: () => onChanged(value),
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppTheme.burntSienna.withAlpha(25)
+                  : AppTheme.parchmentHighlight,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected ? AppTheme.burntSienna : Colors.transparent,
+                width: 1.5,
               ),
-              const SizedBox(height: 14),
-              Text(
-                'Furniture for the way you live.',
-                style: Theme.of(context).textTheme.displayLarge,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Curated pieces for calm rooms, tactile materials, and timeless silhouettes.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(color: AppTheme.deepUmber),
-              ),
-              const SizedBox(height: 22),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  FilledButton(
-                    onPressed: product == null
-                        ? null
-                        : () => context.go('/product/${product!.id}'),
-                    child: const Text('Shop the collection'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: product == null
-                        ? null
-                        : () => context.go('/ar/${product!.id}'),
-                    icon: const Icon(Icons.view_in_ar_outlined),
-                    label: const Text('Preview in AR'),
-                  ),
-                  FilledButton.icon(
-                    onPressed: () => context.go('/ar-scene'),
-                    icon: const Icon(Icons.space_dashboard_outlined),
-                    label: const Text('Design Your Room'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.burntSienna,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Wrap(
-                spacing: 14,
-                runSpacing: 14,
-                children: const [
-                  _HeroMetric(label: 'Warm materials', value: 'Light-first'),
-                  _HeroMetric(label: 'Responsive layout', value: 'Whole app'),
-                  _HeroMetric(label: 'Purchase flow', value: 'Streamlined'),
-                ],
-              ),
-            ],
-          );
-
-          final visual = product == null
-              ? const SizedBox.shrink()
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: AspectRatio(
-                    aspectRatio: isWide ? 0.92 : 1.3,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.network(product!.imageUrlResolved, fit: BoxFit.cover),
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: 0.2),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          left: 18,
-                          right: 18,
-                          bottom: 18,
-                          child: Card(
-                            clipBehavior: Clip.antiAlias,
-                            child: InkWell(
-                              onTap: () =>
-                                  context.go('/product/${product!.id}'),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            product!.name,
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.titleMedium,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            formatCurrency(product!.price),
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyLarge
-                                                ?.copyWith(
-                                                  color: Theme.of(
-                                                    context,
-                                                  ).colorScheme.secondary,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Open featured product',
-                                      onPressed: () =>
-                                          context.go('/product/${product!.id}'),
-                                      icon: const Icon(
-                                        Icons.arrow_forward_rounded,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-
-          if (!isWide) {
-            return Column(
+            ),
+            child: Icon(
+              icon,
+              color: isSelected ? AppTheme.burntSienna : AppTheme.deepUmber,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                content,
-                if (product != null) ...[const SizedBox(height: 20), visual],
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected
+                        ? AppTheme.richCharcoal
+                        : AppTheme.deepUmber,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppTheme.deepUmber),
+                ),
               ],
-            );
-          }
-
-          return Row(
-            children: [
-              Expanded(flex: 11, child: content),
-              if (product != null) ...[
-                const SizedBox(width: 24),
-                Expanded(flex: 10, child: visual),
-              ],
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _HeroMetric extends StatelessWidget {
-  const _HeroMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.parchment,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 2),
-          Text(value, style: Theme.of(context).textTheme.titleMedium),
+            ),
+          ),
+          Radio<String>(
+            value: value,
+            groupValue: groupValue,
+            activeColor: AppTheme.burntSienna,
+            onChanged: onChanged,
+          ),
         ],
       ),
     );
   }
 }
+
+// _CatalogHero removed — shop now shows pure product grid.
 
 class _CartItemPanel extends StatelessWidget {
   const _CartItemPanel({required this.item});
@@ -1509,7 +1675,21 @@ class _CartItemPanel extends StatelessWidget {
             children: [
               _QuantityButton(
                 icon: Icons.add,
-                onPressed: () => cart.addItem(item.product),
+                onPressed: () {
+                  if (item.quantity + 1 > item.product.stockQuantity) {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Only ${item.product.stockQuantity} left in stock',
+                        ),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                    return;
+                  }
+                  cart.addItem(item.product);
+                },
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1614,11 +1794,28 @@ class _ArImageBackgroundOptions extends StatelessWidget {
         child: Text(
           'Sign in to upload an image or choose from your generated images.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.7),
+          ),
         ),
       );
     }
+    final hasImage = currentImageUrl != null && currentImageUrl!.isNotEmpty;
+
+    if (hasImage) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          OutlinedButton.icon(
+            onPressed: onClear,
+            icon: const Icon(Icons.clear, size: 18),
+            label: const Text('Clear image'),
+          ),
+        ],
+      );
+    }
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -1633,22 +1830,13 @@ class _ArImageBackgroundOptions extends StatelessWidget {
           icon: const Icon(Icons.photo_library_outlined, size: 18),
           label: const Text('From my images'),
         ),
-        if (currentImageUrl != null && currentImageUrl!.isNotEmpty)
-          TextButton.icon(
-            onPressed: onClear,
-            icon: const Icon(Icons.clear, size: 18),
-            label: const Text('Clear'),
-          ),
       ],
     );
   }
 }
 
 class _ArGeneratedImagesSheet extends StatelessWidget {
-  const _ArGeneratedImagesSheet({
-    required this.userId,
-    required this.onSelect,
-  });
+  const _ArGeneratedImagesSheet({required this.userId, required this.onSelect});
 
   final String userId;
   final void Function(String url) onSelect;
@@ -1719,10 +1907,7 @@ class _ArGeneratedImagesSheet extends StatelessWidget {
                       onTap: () => onSelect(url),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          url,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Image.network(url, fit: BoxFit.cover),
                       ),
                     );
                   },
@@ -1735,419 +1920,6 @@ class _ArGeneratedImagesSheet extends StatelessWidget {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// AI Scene Generator – placed on the product detail page so users can
-// visualise the current product in a room scene using OpenAI image editing.
-// ---------------------------------------------------------------------------
-
-const _roomScenePresets = <({String label, String description})>[
-  (
-    label: 'Modern Living Room',
-    description:
-        'a modern minimalist living room with white walls, light oak hardwood floors, and large windows with natural sunlight',
-  ),
-  (
-    label: 'Cozy Bedroom',
-    description:
-        'a cozy Scandinavian bedroom with warm lighting, linen curtains, and natural wood accents',
-  ),
-  (
-    label: 'Industrial Loft',
-    description:
-        'an industrial loft space with exposed brick walls, concrete floors, and tall metal-frame windows',
-  ),
-  (
-    label: 'Contemporary Office',
-    description:
-        'a bright contemporary home office with a clean desk setup and large floor-to-ceiling windows',
-  ),
-  (
-    label: 'Classic Study',
-    description:
-        'a traditional study room with dark wood bookshelves, a Persian rug, and warm ambient lighting',
-  ),
-  (
-    label: 'Bohemian Space',
-    description:
-        'a bohemian living space with colorful textiles, indoor plants, and eclectic decor on wooden floors',
-  ),
-];
-
-class _AiSceneGeneratorSection extends StatefulWidget {
-  const _AiSceneGeneratorSection({
-    required this.product,
-    required this.generatedImageRepository,
-  });
-
-  final Product product;
-  final GeneratedImageRepository generatedImageRepository;
-
-  @override
-  State<_AiSceneGeneratorSection> createState() =>
-      _AiSceneGeneratorSectionState();
-}
-
-class _AiSceneGeneratorSectionState extends State<_AiSceneGeneratorSection> {
-  final _promptController = TextEditingController();
-  final _repository = NvidiaNimImageRepository();
-
-  bool _isLoading = false;
-  bool _isSaving = false;
-  Uint8List? _resultBytes;
-  String? _error;
-
-  Uint8List? _sceneImageBytes;
-  String? _sceneImageName;
-  int? _selectedPresetIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _applyPreset(0);
-  }
-
-  @override
-  void dispose() {
-    _promptController.dispose();
-    super.dispose();
-  }
-
-  void _applyPreset(int index) {
-    _selectedPresetIndex = index;
-    final preset = _roomScenePresets[index];
-    _promptController.text =
-        'Place this ${widget.product.name} naturally in ${ preset.description}. '
-        'Make the result photorealistic with proper lighting and shadows.';
-  }
-
-  Future<void> _pickSceneImage() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    if (file.bytes == null) return;
-    setState(() {
-      _sceneImageBytes = Uint8List.fromList(file.bytes!);
-      _sceneImageName = file.name;
-      _selectedPresetIndex = null;
-      _promptController.text =
-          'Place this ${widget.product.name} naturally in this room scene. '
-          'Make it look photorealistic with proper lighting and shadows.';
-    });
-  }
-
-  void _clearSceneImage() {
-    setState(() {
-      _sceneImageBytes = null;
-      _sceneImageName = null;
-      if (_selectedPresetIndex == null) {
-        _applyPreset(0);
-      }
-    });
-  }
-
-  void _showSavedImagesSheet() {
-    final auth = context.read<AuthProvider>();
-    if (!auth.isAuthenticated || auth.currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sign in to choose from your generated images'),
-        ),
-      );
-      return;
-    }
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => _ArGeneratedImagesSheet(
-        userId: auth.currentUser!.id,
-        onSelect: (url) async {
-          Navigator.of(ctx).pop();
-          try {
-            final response = await http.get(Uri.parse(url));
-            if (response.statusCode == 200 && mounted) {
-              setState(() {
-                _sceneImageBytes = response.bodyBytes;
-                _sceneImageName = 'Saved image';
-                _selectedPresetIndex = null;
-                _promptController.text =
-                    'Place this ${widget.product.name} naturally in this room '
-                    'scene. Make it look photorealistic with proper lighting '
-                    'and shadows.';
-              });
-            }
-          } catch (_) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to load the image')),
-            );
-          }
-        },
-      ),
-    );
-  }
-
-  Future<void> _generate() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-      _resultBytes = null;
-    });
-
-    try {
-      final productImgResponse =
-          await http.get(Uri.parse(widget.product.imageUrlResolved));
-      if (productImgResponse.statusCode != 200) {
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-          _error = 'Could not download the product image.';
-        });
-        return;
-      }
-
-      final images = <List<int>>[productImgResponse.bodyBytes];
-      if (_sceneImageBytes != null) {
-        images.add(_sceneImageBytes!);
-      }
-
-      final result = await _repository.editImage(
-        apiKey: _GenerateImageSectionState._apiKey,
-        prompt: _promptController.text,
-        images: images,
-        proxyUrl: _GenerateImageSectionState._proxyUrl,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _resultBytes = result.imageBytes != null
-            ? Uint8List.fromList(result.imageBytes!)
-            : null;
-        _error = result.error;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _error = 'Error: $e';
-      });
-    }
-  }
-
-  Future<void> _save() async {
-    final userId = context.read<AuthProvider>().currentUser?.id;
-    if (userId == null || _resultBytes == null || _resultBytes!.isEmpty) return;
-
-    final prompt = _promptController.text.trim();
-    if (prompt.isEmpty) return;
-
-    setState(() => _isSaving = true);
-    try {
-      final imagePath =
-          await saveGeneratedImageToStorage(userId, _resultBytes!);
-      await widget.generatedImageRepository.insert(
-        userId: userId,
-        prompt: prompt,
-        imagePath: imagePath,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Image saved to your history')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-
-    return AppPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppSectionHeader(
-            eyebrow: 'AI powered',
-            title: 'Visualise in your space',
-            subtitle:
-                'See how this piece looks in a room. Upload a photo of your '
-                'own space, choose a preset room style, or pick from your '
-                'previously generated images.',
-          ),
-
-          if (!auth.isAuthenticated) ...[
-            const SizedBox(height: 20),
-            AppMessagePanel(
-              title: 'Sign in to generate scenes',
-              message:
-                  'AI scene generation is available when you are signed in.',
-              icon: Icons.login,
-              action: TextButton.icon(
-                onPressed: () => context.push('/login'),
-                icon: const Icon(Icons.login, size: 20),
-                label: const Text('Sign in'),
-              ),
-            ),
-          ] else ...[
-            // -- Room scene source ----------------------------------------
-            const SizedBox(height: 20),
-            Text(
-              'Room scene',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const SizedBox(height: 10),
-
-            // Preset chips
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var i = 0; i < _roomScenePresets.length; i++)
-                  ChoiceChip(
-                    label: Text(_roomScenePresets[i].label),
-                    selected:
-                        _selectedPresetIndex == i && _sceneImageBytes == null,
-                    onSelected: (_) {
-                      setState(() {
-                        _sceneImageBytes = null;
-                        _sceneImageName = null;
-                        _applyPreset(i);
-                      });
-                    },
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Upload / saved images row
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.tonalIcon(
-                  onPressed: _pickSceneImage,
-                  icon: const Icon(Icons.upload_file, size: 18),
-                  label: const Text('Upload room photo'),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: _showSavedImagesSheet,
-                  icon: const Icon(Icons.photo_library_outlined, size: 18),
-                  label: const Text('From my images'),
-                ),
-              ],
-            ),
-
-            // Scene image preview
-            if (_sceneImageBytes != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.memory(
-                      _sceneImageBytes!,
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _sceneImageName ?? 'Uploaded image',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _clearSceneImage,
-                    icon: const Icon(Icons.close, size: 20),
-                    tooltip: 'Remove scene image',
-                  ),
-                ],
-              ),
-            ],
-
-            // -- Prompt ---------------------------------------------------
-            const SizedBox(height: 20),
-            TextField(
-              controller: _promptController,
-              decoration: const InputDecoration(
-                labelText: 'Prompt',
-                hintText: 'Describe how the product should appear in the scene',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-
-            // -- Generate -------------------------------------------------
-            FilledButton.icon(
-              onPressed: _isLoading ? null : _generate,
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_awesome, size: 20),
-              label: Text(_isLoading ? 'Generating…' : 'Generate AI Scene'),
-            ),
-
-            // -- Error message --------------------------------------------
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              AppMessagePanel(
-                title: 'Generation failed',
-                message: _error!,
-                icon: Icons.error_outline_rounded,
-              ),
-            ],
-
-            // -- Result ---------------------------------------------------
-            if (_resultBytes != null && _resultBytes!.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 500),
-                  child: Image.memory(
-                    _resultBytes!,
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _isSaving ? null : _save,
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined, size: 20),
-                label: Text(_isSaving ? 'Saving…' : 'Save to my history'),
-              ),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 // ---------------------------------------------------------------------------
 
 String _categorySummary(Product product) {

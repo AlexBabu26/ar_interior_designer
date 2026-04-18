@@ -20,7 +20,8 @@ class AdminCreateCarpenterScreen extends StatefulWidget {
       _AdminCreateCarpenterScreenState();
 }
 
-class _AdminCreateCarpenterScreenState extends State<AdminCreateCarpenterScreen> {
+class _AdminCreateCarpenterScreenState
+    extends State<AdminCreateCarpenterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -98,7 +99,8 @@ class _AdminCreateCarpenterScreenState extends State<AdminCreateCarpenterScreen>
       if (!mounted) return;
       setState(() {
         _isSubmitting = false;
-        _errorMessage = 'Network error: $e. Is the backend running on $_backendBaseUrl?';
+        _errorMessage =
+            'Network error: $e. Is the backend running on $_backendBaseUrl?';
       });
     }
   }
@@ -183,7 +185,8 @@ class _AdminCreateCarpenterScreenState extends State<AdminCreateCarpenterScreen>
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: Theme.of(context)
-                                  .colorScheme.primaryContainer
+                                  .colorScheme
+                                  .primaryContainer
                                   .withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -197,7 +200,9 @@ class _AdminCreateCarpenterScreenState extends State<AdminCreateCarpenterScreen>
                                 Expanded(
                                   child: Text(
                                     _successMessage!,
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                 ),
                               ],
@@ -210,7 +215,8 @@ class _AdminCreateCarpenterScreenState extends State<AdminCreateCarpenterScreen>
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: Theme.of(context)
-                                  .colorScheme.errorContainer
+                                  .colorScheme
+                                  .errorContainer
                                   .withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -224,7 +230,9 @@ class _AdminCreateCarpenterScreenState extends State<AdminCreateCarpenterScreen>
                                 Expanded(
                                   child: Text(
                                     _errorMessage!,
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                 ),
                               ],

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/app_nav_bar.dart';
 import '../../../app/app_surfaces.dart';
 import '../../../app/currency.dart';
 import '../../catalog/data/product_repository.dart';
 import '../../catalog/domain/product.dart';
 import '../data/product_model_picker_stub.dart'
-    if (dart.library.html) '../data/product_model_picker_web.dart' as model_picker;
+    if (dart.library.html) '../data/product_model_picker_web.dart'
+    as model_picker;
 import '../data/product_model_upload.dart';
 
 class AdminProductsScreen extends StatelessWidget {
@@ -18,7 +20,10 @@ class AdminProductsScreen extends StatelessWidget {
     final repository = context.read<ProductRepository>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Products')),
+      appBar: const AppNavBar(
+        title: 'Manage Products',
+        showBackButton: true,
+      ),
       body: FutureBuilder<List<Product>>(
         future: repository.getAdminProducts(),
         builder: (context, snapshot) {
@@ -68,10 +73,21 @@ class AdminProductsScreen extends StatelessWidget {
                       title: 'Collection management',
                       subtitle:
                           'Review active products, launch edits, and keep the showroom presentation consistent.',
-                      action: FilledButton.icon(
-                        onPressed: () => context.push('/admin/products/new'),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add product'),
+                      action: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => context.push('/admin/categories'),
+                            icon: const Icon(Icons.category_outlined),
+                            label: const Text('Manage Categories'),
+                          ),
+                          const SizedBox(width: 12),
+                          FilledButton.icon(
+                            onPressed: () => context.push('/admin/products/new'),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add product'),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -128,6 +144,15 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
   final _imageUrlController = TextEditingController();
   final _categoriesController = TextEditingController();
   final _modelUrlController = TextEditingController();
+  List<String> _existingCategories = [
+    'Sofas',
+    'Chairs',
+    'Tables',
+    'Beds',
+    'Storage',
+    'Decor',
+    'Office',
+  ];
   bool _isActive = true;
   bool _isSaving = false;
   bool _isUploadingModel = false;
@@ -137,11 +162,23 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
   @override
   void initState() {
     super.initState();
+    _loadExistingCategories();
     if (widget.productId != null) {
       _loadFuture = context.read<ProductRepository>().getProductById(
         widget.productId!,
       );
     }
+  }
+
+  Future<void> _loadExistingCategories() async {
+    try {
+      final cats = await context.read<ProductRepository>().getCategories();
+      if (mounted) {
+        setState(() {
+          _existingCategories = (Set<String>.from(_existingCategories)..addAll(cats)).toList()..sort();
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -182,8 +219,9 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
 
   Scaffold _buildScaffold(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.productId == null ? 'Add Product' : 'Edit Product'),
+      appBar: AppNavBar(
+        title: widget.productId == null ? 'Add Product' : 'Edit Product',
+        showBackButton: true,
       ),
       body: Form(
         key: _formKey,
@@ -262,8 +300,10 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
                                 controller: _modelUrlController,
                                 decoration: const InputDecoration(
                                   labelText: 'Primary 3D model path',
-                                  hintText: 'Upload a .glb/.gltf file or enter path',
-                                  helperText: 'Stored under web/product_assets/models',
+                                  hintText:
+                                      'Upload a .glb/.gltf file or enter path',
+                                  helperText:
+                                      'Stored under web/product_assets/models',
                                 ),
                                 validator: (value) =>
                                     value == null || value.trim().isEmpty
@@ -276,28 +316,50 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 FilledButton.icon(
-                                  onPressed: _isUploadingModel ? null : _pickAndUploadModel,
+                                  onPressed: _isUploadingModel
+                                      ? null
+                                      : _pickAndUploadModel,
                                   icon: _isUploadingModel
                                       ? const SizedBox(
                                           width: 18,
                                           height: 18,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
                                         )
                                       : const Icon(Icons.upload_file),
-                                  label: Text(_isUploadingModel ? 'Uploading...' : 'Upload file'),
+                                  label: Text(
+                                    _isUploadingModel
+                                        ? 'Uploading...'
+                                        : 'Upload file',
+                                  ),
                                 ),
                               ],
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _categoriesController,
+                        DropdownButtonFormField<String>(
+                          value: _existingCategories.contains(_categoriesController.text.trim()) 
+                              ? _categoriesController.text.trim() 
+                              : null,
                           decoration: const InputDecoration(
-                            labelText: 'Categories',
-                            helperText:
-                                'Comma-separated, for example Chairs, Living Room',
+                            labelText: 'Category',
+                            helperText: 'Select a category for this piece',
                           ),
+                          items: _existingCategories
+                              .where((c) => c.isNotEmpty)
+                              .map((c) => DropdownMenuItem(
+                                    value: c,
+                                    child: Text(c),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              _categoriesController.text = value;
+                            }
+                          },
+                          validator: (value) => (value == null || value.isEmpty) ? 'Please select a category' : null,
                         ),
                         const SizedBox(height: 16),
                         SwitchListTile(
@@ -326,7 +388,9 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
                               icon: const Icon(Icons.delete_outline),
                               label: const Text('Delete product'),
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Theme.of(context).colorScheme.error,
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.error,
                                 side: BorderSide(
                                   color: Theme.of(context).colorScheme.error,
                                 ),
@@ -351,7 +415,9 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
     if (picked == null || picked.bytes.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No file selected or could not read file.')),
+        const SnackBar(
+          content: Text('No file selected or could not read file.'),
+        ),
       );
       return;
     }
@@ -363,14 +429,14 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
       );
       if (!mounted) return;
       _modelUrlController.text = path;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Model uploaded: $path')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Model uploaded: $path')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
     } finally {
       if (mounted) setState(() => _isUploadingModel = false);
     }
@@ -404,15 +470,15 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
     try {
       await context.read<ProductRepository>().deleteProduct(widget.productId!);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product deleted.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Product deleted.')));
       context.go('/admin/products');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to delete product: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to delete product: $e')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -441,6 +507,7 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
               .toList(),
           modelUrl: _modelUrlController.text.trim(),
           isActive: _isActive,
+          // Stock removed from here
         ),
       );
 
